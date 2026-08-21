@@ -307,7 +307,6 @@ body { font-family: 'ABCOracle', sans-serif; background: #e8e8e8; color: #000; }
     <button onclick="deselTodas()">Ninguna</button>
   </div>
   <div id="gminis"></div>
-  <div id="info-dup"></div>
   <button id="btn-generar" onclick="generar()" disabled>Generar carteles</button>
 </div>
 
@@ -320,6 +319,7 @@ body { font-family: 'ABCOracle', sans-serif; background: #e8e8e8; color: #000; }
       <button class="primario" onclick="window.print()">🖨 Imprimir / PDF</button>
     </div>
   </div>
+  <div id="info-dup"></div>
   <div id="preview-grupos"></div>
 </div>
 
@@ -657,7 +657,6 @@ function refGrid() {
   }).join('');
 
   actualizarBotonGenerar();
-  actualizarInfoDup();
 }
 
 function toggleSel(titulo) {
@@ -745,21 +744,7 @@ function calcularCarteles() {
   return resultado;
 }
 
-function actualizarInfoDup() {
-  const carteles = calcularCarteles();
-  const dup = carteles.filter(c => !c.esNuevo);
-  const div = document.getElementById('info-dup');
-  if (dup.length === 0 || sel.length === 0) { div.style.display = 'none'; return; }
-  div.style.display = 'block';
-  div.innerHTML = `<h3>♻️ ${dup.length} cartel${dup.length > 1 ? 'es' : ''} reutilizable${dup.length > 1 ? 's' : ''}</h3>
-    <p>Mismos horarios que un día anterior — <strong>no hace falta reimprimir</strong>:</p>
-    <ul style="margin-top:6px; padding-left:18px;">
-      ${dup.map(c => {
-        const { titulo } = extraerSubtitulo(c.pelicula.titulo);
-        return `<li><em>${titulo}</em> — <strong>${c.dia}</strong> (igual que ${c.reutilizarDesde})</li>`;
-      }).join('')}
-    </ul>`;
-}
+
 
 // ════════════════════════════════════════════
 // CONSTRUCCIÓN DEL CARTEL — REPLICA EXACTA ODT
@@ -807,62 +792,132 @@ function buildCartelHTML(item) {
 // GENERAR
 // ════════════════
 
+// Almacén global de HTML de carteles, indexado por número
+// Evita incrustar HTML en atributos onclick (que corrompe las comillas)
+let _carteleStore = [];
+
 function generar() {
   const carteles = calcularCarteles();
   if (!carteles.length) return;
 
+  _carteleStore = [];
   document.getElementById('n-carteles').textContent = carteles.length;
 
-  // Carteles imprimibles
+  // ── Carteles imprimibles ──
   document.getElementById('carteles').innerHTML = carteles.map(item =>
     `<div class="cartel-pagina">${buildCartelHTML(item)}</div>`
   ).join('');
 
-  // Preview agrupado por película
+  // ── Aviso de duplicados (ahora en la vista previa) ──
+  const dup = carteles.filter(c => !c.esNuevo);
+  const infoDup = document.getElementById('info-dup');
+  if (dup.length > 0) {
+    // Agrupar duplicados por película para presentación compacta
+    const porPeli = new Map();
+    for (const c of dup) {
+      const { titulo } = extraerSubtitulo(c.pelicula.titulo);
+      if (!porPeli.has(titulo)) porPeli.set(titulo, []);
+      porPeli.get(titulo).push({ dia: c.dia, desde: c.reutilizarDesde });
+    }
+    let filas = '';
+    for (const [tit, dias] of porPeli) {
+      const diasStr = dias.map(d => `${d.dia} (= ${d.desde})`).join(', ');
+      filas += `<tr><td style="padding:3px 12px 3px 0; font-style:italic;">${tit}</td><td style="padding:3px 0; color:#555;">${diasStr}</td></tr>`;
+    }
+    infoDup.style.display = 'block';
+    infoDup.innerHTML = `
+      <h3>♻️ ${dup.length} cartel${dup.length > 1 ? 'es' : ''} reutilizable${dup.length > 1 ? 's' : ''}</h3>
+      <p style="margin-bottom:8px;">Estos días tienen exactamente los mismos horarios que el día indicado — <strong>no hace falta reimprimir</strong>:</p>
+      <table style="border-collapse:collapse; font-size:12px;">${filas}</table>`;
+  } else {
+    infoDup.style.display = 'none';
+    infoDup.innerHTML = '';
+  }
+
+  // ── Preview agrupado por película ──
   const grupos = new Map();
-  for (const item of carteles) {
+  for (let i = 0; i < carteles.length; i++) {
+    const item = carteles[i];
+    _carteleStore[i] = buildCartelHTML(item); // guardar en almacén
     const t = item.pelicula.titulo;
     if (!grupos.has(t)) grupos.set(t, []);
-    grupos.get(t).push(item);
+    grupos.get(t).push({ item, idx: i });
   }
 
   const preview = document.getElementById('preview-grupos');
   preview.innerHTML = '';
 
-  for (const [titulo, items] of grupos) {
+  for (const [titulo, entries] of grupos) {
     const { titulo: tituloLimpio, subtitulo } = extraerSubtitulo(titulo);
     const label = subtitulo ? `${subtitulo} — ${tituloLimpio}` : tituloLimpio;
 
-    const div = document.createElement('div');
-    div.className = 'preview-grupo';
+    const grupDiv = document.createElement('div');
+    grupDiv.className = 'preview-grupo';
 
-    let row = `<div class="preview-grupo-label">${label}</div><div class="preview-cards-row">`;
+    // Cabecera del grupo
+    const labelEl = document.createElement('div');
+    labelEl.className = 'preview-grupo-label';
+    labelEl.textContent = label;
+    grupDiv.appendChild(labelEl);
 
-    for (const item of items) {
-      const badge = !item.esNuevo ? `<div class="badge-reutiliza">= ${item.reutilizarDesde}</div>` : '';
-      const cartelHTML = buildCartelHTML(item);
-      const horasTexto = item.horas.map(formatoHora).join('<br>');
+    const row = document.createElement('div');
+    row.className = 'preview-cards-row';
+
+    for (const { item, idx } of entries) {
       const { subtitulo: sub, titulo: tit } = extraerSubtitulo(item.pelicula.titulo);
-      row += `<div class="preview-thumb" onclick='mostrarModal(${JSON.stringify(cartelHTML)})'>
-        ${badge}
-        ${sub ? `<div class="pt-subtitulo">${sub}</div>` : ''}
-        <div class="pt-titulo">${tit}</div>
-        <hr class="pt-horas-sep">
-        <div class="pt-dia">${item.dia}</div>
-        <div class="pt-horas">${horasTexto}</div>
-      </div>`;
+      const horasTexto = item.horas.map(formatoHora).join(' · ');
+
+      const card = document.createElement('div');
+      card.className = 'preview-thumb';
+      card.dataset.idx = idx;
+      card.addEventListener('click', () => mostrarModal(idx));
+
+      if (!item.esNuevo) {
+        const badge = document.createElement('div');
+        badge.className = 'badge-reutiliza';
+        badge.textContent = '= ' + item.reutilizarDesde;
+        card.appendChild(badge);
+      }
+
+      if (sub) {
+        const subEl = document.createElement('div');
+        subEl.className = 'pt-subtitulo';
+        subEl.textContent = sub;
+        card.appendChild(subEl);
+      }
+
+      const titEl = document.createElement('div');
+      titEl.className = 'pt-titulo';
+      titEl.textContent = tit;
+      card.appendChild(titEl);
+
+      const sep = document.createElement('hr');
+      sep.className = 'pt-horas-sep';
+      card.appendChild(sep);
+
+      const diaEl = document.createElement('div');
+      diaEl.className = 'pt-dia';
+      diaEl.textContent = item.dia;
+      card.appendChild(diaEl);
+
+      const horasEl = document.createElement('div');
+      horasEl.className = 'pt-horas';
+      horasEl.textContent = horasTexto;
+      card.appendChild(horasEl);
+
+      row.appendChild(card);
     }
-    row += '</div>';
-    div.innerHTML = row;
-    preview.appendChild(div);
+
+    grupDiv.appendChild(row);
+    preview.appendChild(grupDiv);
   }
 
   document.getElementById('panel-sel').style.display = 'none';
   document.getElementById('carteles-preview').classList.add('visible');
 }
 
-function mostrarModal(html) {
-  document.getElementById('modal-inner').innerHTML = html;
+function mostrarModal(idx) {
+  document.getElementById('modal-inner').innerHTML = _carteleStore[idx] || '';
   document.getElementById('modal-overlay').classList.add('visible');
 }
 function cerrarModal(e) {
