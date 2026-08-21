@@ -185,12 +185,11 @@ body { font-family: 'ABCOracle', sans-serif; background: #e8e8e8; color: #000; }
   #carga, #barra-ctrl, #panel-sel, #carteles-preview { display: none !important; }
   #carteles { display: block !important; }
   .cartel-pagina {
-    width: 21cm; min-height: 29.7cm;
-    page-break-after: always; break-after: page;
-    display: flex; align-items: flex-start; justify-content: center;
+    page-break-before: always; break-before: page;
+    display: flex; justify-content: center;
     padding-top: 2cm;
   }
-  .cartel-pagina:last-child { page-break-after: auto; break-after: auto; }
+  .cartel-pagina:first-child { page-break-before: auto; break-before: auto; }
 }
 @media screen {
   #carteles { display: none; }
@@ -198,11 +197,12 @@ body { font-family: 'ABCOracle', sans-serif; background: #e8e8e8; color: #000; }
 
 /* El cartel en sí */
 .cartel {
-  width: 21cm; min-height: 29.7cm;
+  width: 21cm;
   background: #fff;
   text-align: center;
   padding: 2cm 1.5cm 1.5cm;
   display: flex; flex-direction: column; align-items: center;
+  page-break-inside: avoid; break-inside: avoid;
 }
 
 /* P1: subtítulo — ABCSolar 40pt */
@@ -218,10 +218,10 @@ body { font-family: 'ABCOracle', sans-serif; background: #e8e8e8; color: #000; }
   font-family: 'ABCSolar', sans-serif;
   font-size: 70pt;
   line-height: 1.0;
-  margin-bottom: 0.3cm;
+  margin-bottom: 0.2cm;
 }
 
-/* P5: título muy largo — ABCSolar 50pt */
+/* título largo — ABCSolar 50pt */
 .c-titulo-largo {
   font-size: 50pt;
 }
@@ -231,13 +231,7 @@ body { font-family: 'ABCOracle', sans-serif; background: #e8e8e8; color: #000; }
   font-family: 'ABCOracle', sans-serif;
   font-size: 24pt;
   line-height: 1.3;
-  margin-bottom: 0;
-}
-
-/* Separador visual (no en el ODT, pero útil) */
-.c-espacio {
-  flex: 1;
-  min-height: 0.5cm;
+  margin-bottom: 0.6cm;
 }
 
 /* P4: horas — ABCOracle 70pt, una por línea */
@@ -247,7 +241,30 @@ body { font-family: 'ABCOracle', sans-serif; background: #e8e8e8; color: #000; }
   line-height: 1.15;
 }
 
-/* Modal pantalla */
+/* Modal duplicados */
+@media screen {
+  #modal-dup {
+    position: fixed; inset: 0; background: rgba(0,0,0,.6);
+    z-index: 600; align-items: center; justify-content: center;
+    display: flex;
+  }
+  #modal-dup:not(.visible) { display: none; }
+  #modal-dup-inner {
+    background: #fff; padding: 28px 28px 24px; max-width: 600px; width: 90%;
+    max-height: 80vh; overflow-y: auto; position: relative;
+  }
+  #modal-dup-tabla table { border-collapse: collapse; font-size: 13px; width: 100%; }
+  #modal-dup-tabla td { padding: 5px 14px 5px 0; border-bottom: 1px solid #eee; }
+  #modal-dup-tabla td:first-child { font-style: italic; font-weight: bold; white-space: nowrap; }
+  #modal-dup-tabla td:last-child { color: #555; }
+  #btn-dup {
+    background: #fff8e1; border: 1px solid #f39c12; color: #7a5c00;
+    padding: 10px 16px; font-family: 'ABCOracle', sans-serif; font-size: 13px; cursor: pointer;
+  }
+  #btn-dup:hover { background: #fff0b0; }
+}
+
+/* Modal cartel a tamaño completo */
 @media screen {
   #modal-overlay {
     display: none; position: fixed; inset: 0; background: rgba(0,0,0,.75);
@@ -316,11 +333,21 @@ body { font-family: 'ABCOracle', sans-serif; background: #e8e8e8; color: #000; }
     <h2>Vista previa — <span id="n-carteles">0</span> carteles</h2>
     <div class="preview-actions">
       <button onclick="document.getElementById('carteles-preview').classList.remove('visible'); document.getElementById('panel-sel').style.display='block'">← Volver</button>
+      <button id="btn-dup" style="display:none" onclick="document.getElementById('modal-dup').classList.add('visible')">♻️ Ver reutilizables</button>
       <button class="primario" onclick="window.print()">🖨 Imprimir / PDF</button>
     </div>
   </div>
-  <div id="info-dup"></div>
   <div id="preview-grupos"></div>
+</div>
+
+<!-- Modal duplicados -->
+<div id="modal-dup" onclick="if(event.target===this)this.classList.remove('visible')" style="display:none">
+  <div id="modal-dup-inner">
+    <button onclick="document.getElementById('modal-dup').classList.remove('visible')" style="position:absolute;top:12px;right:16px;background:none;border:none;font-size:22px;cursor:pointer;line-height:1">×</button>
+    <h3 id="modal-dup-titulo" style="font-family:'ABCSolar',sans-serif;font-size:16px;margin-bottom:10px"></h3>
+    <p style="font-size:13px;margin-bottom:12px">Mismos horarios que el día indicado — <strong>no hace falta reimprimir</strong>:</p>
+    <div id="modal-dup-tabla"></div>
+  </div>
 </div>
 
 <!-- Modal cartel a tamaño completo -->
@@ -763,19 +790,19 @@ function formatoHora(h) {
 }
 
 function buildCartelHTML(item) {
-  const { pelicula, dia, horas } = item;
+  // item.dias es un array de strings cuando hay días agrupados,
+  // o item.dia es un string único (compatibilidad hacia atrás)
+  const diasArr = item.dias || [item.dia];
+  const { pelicula, horas } = item;
   const { subtitulo, titulo } = extraerSubtitulo(pelicula.titulo);
 
-  // Ajustar tamaño de título si es muy largo
   const tituloClase = titulo.length > 20 ? 'c-titulo c-titulo-largo' : 'c-titulo';
 
   const subtituloHTML = subtitulo
     ? `<div class="c-subtitulo">${subtitulo}</div>`
     : '';
 
-  // Rating: la web no lo proporciona directamente, lo dejamos en blanco
-  // (en el futuro se puede añadir si la web lo expone)
-  const ratingHTML = '';
+  const ratingHTML = `<div class="c-rating">(No recomendada para menores de «x» años)</div>`;
 
   const horasHTML = horas.map(h => `<div class="c-hora">${formatoHora(h)}</div>`).join('');
 
@@ -783,7 +810,6 @@ function buildCartelHTML(item) {
     ${subtituloHTML}
     <div class="${tituloClase}">${titulo}</div>
     ${ratingHTML}
-    <div class="c-espacio"></div>
     ${horasHTML}
   </div>`;
 }
@@ -800,61 +826,84 @@ function generar() {
   const carteles = calcularCarteles();
   if (!carteles.length) return;
 
-  _carteleStore = [];
-  document.getElementById('n-carteles').textContent = carteles.length;
+  // ── Agrupar por firma: carteles con idénticas horas se funden en uno
+  // Un "bloque" representa un único cartel físico, potencialmente válido para varios días
+  const bloquesPorFilm = new Map(); // titulo → [bloque, ...]
+  // bloque = { pelicula, horas, firma, dias:[], esNuevo, reutilizarDesde }
 
-  // ── Carteles imprimibles ──
-  document.getElementById('carteles').innerHTML = carteles.map(item =>
-    `<div class="cartel-pagina">${buildCartelHTML(item)}</div>`
+  for (const c of carteles) {
+    const t = c.pelicula.titulo;
+    if (!bloquesPorFilm.has(t)) bloquesPorFilm.set(t, []);
+    const lista = bloquesPorFilm.get(t);
+    const existente = lista.find(b => b.firma === c.firma);
+    if (existente) {
+      existente.dias.push(c.dia);
+    } else {
+      lista.push({
+        pelicula: c.pelicula,
+        horas: c.horas,
+        firma: c.firma,
+        dias: [c.dia],
+        esNuevo: c.esNuevo,
+        reutilizarDesde: c.reutilizarDesde
+      });
+    }
+  }
+
+  // Lista plana de bloques únicos en el orden original de selección
+  const bloques = [];
+  for (const titulo of sel) {
+    const lista = bloquesPorFilm.get(titulo);
+    if (lista) lista.forEach(b => bloques.push(b));
+  }
+
+  _carteleStore = [];
+  const totalCarteles = bloques.length;
+  document.getElementById('n-carteles').textContent = totalCarteles;
+
+  // ── Carteles imprimibles: un bloque = una página ──
+  document.getElementById('carteles').innerHTML = bloques.map(b =>
+    `<div class="cartel-pagina">${buildCartelHTML(b)}</div>`
   ).join('');
 
-  // ── Aviso de duplicados (ahora en la vista previa) ──
-  const dup = carteles.filter(c => !c.esNuevo);
-  const infoDup = document.getElementById('info-dup');
-  if (dup.length > 0) {
-    // Agrupar duplicados por película para presentación compacta
-    const porPeli = new Map();
-    for (const c of dup) {
-      const { titulo } = extraerSubtitulo(c.pelicula.titulo);
-      if (!porPeli.has(titulo)) porPeli.set(titulo, []);
-      porPeli.get(titulo).push({ dia: c.dia, desde: c.reutilizarDesde });
-    }
+  // ── Aviso de reutilizables → modal ──
+  const reutilizables = bloques.filter(b => !b.esNuevo);
+  const btnDup = document.getElementById('btn-dup');
+  if (reutilizables.length > 0) {
+    btnDup.style.display = '';
+    btnDup.textContent = `♻️ ${reutilizables.length} reutilizable${reutilizables.length > 1 ? 's' : ''}`;
+
+    // Construir tabla del modal
     let filas = '';
-    for (const [tit, dias] of porPeli) {
-      const diasStr = dias.map(d => `${d.dia} (= ${d.desde})`).join(', ');
-      filas += `<tr><td style="padding:3px 12px 3px 0; font-style:italic;">${tit}</td><td style="padding:3px 0; color:#555;">${diasStr}</td></tr>`;
+    for (const b of reutilizables) {
+      const { titulo } = extraerSubtitulo(b.pelicula.titulo);
+      const diasStr = b.dias.join(', ');
+      filas += `<tr><td>${titulo}</td><td>${diasStr}</td><td>= ${b.reutilizarDesde}</td></tr>`;
     }
-    infoDup.style.display = 'block';
-    infoDup.innerHTML = `
-      <h3>♻️ ${dup.length} cartel${dup.length > 1 ? 'es' : ''} reutilizable${dup.length > 1 ? 's' : ''}</h3>
-      <p style="margin-bottom:8px;">Estos días tienen exactamente los mismos horarios que el día indicado — <strong>no hace falta reimprimir</strong>:</p>
-      <table style="border-collapse:collapse; font-size:12px;">${filas}</table>`;
+    document.getElementById('modal-dup-titulo').textContent =
+      `♻️ ${reutilizables.length} cartel${reutilizables.length > 1 ? 'es' : ''} reutilizable${reutilizables.length > 1 ? 's' : ''}`;
+    document.getElementById('modal-dup-tabla').innerHTML =
+      `<table><thead><tr style="font-size:11px;color:#888;text-transform:uppercase;letter-spacing:.06em">
+        <th style="text-align:left;padding-bottom:6px;padding-right:14px">Película</th>
+        <th style="text-align:left;padding-bottom:6px;padding-right:14px">Días</th>
+        <th style="text-align:left;padding-bottom:6px">Igual que</th>
+      </tr></thead><tbody>${filas}</tbody></table>`;
   } else {
-    infoDup.style.display = 'none';
-    infoDup.innerHTML = '';
+    btnDup.style.display = 'none';
   }
 
   // ── Preview agrupado por película ──
-  const grupos = new Map();
-  for (let i = 0; i < carteles.length; i++) {
-    const item = carteles[i];
-    _carteleStore[i] = buildCartelHTML(item); // guardar en almacén
-    const t = item.pelicula.titulo;
-    if (!grupos.has(t)) grupos.set(t, []);
-    grupos.get(t).push({ item, idx: i });
-  }
-
   const preview = document.getElementById('preview-grupos');
   preview.innerHTML = '';
 
-  for (const [titulo, entries] of grupos) {
+  for (const [titulo, bloquesDePeli] of bloquesPorFilm) {
+    if (!sel.includes(titulo)) continue;
     const { titulo: tituloLimpio, subtitulo } = extraerSubtitulo(titulo);
     const label = subtitulo ? `${subtitulo} — ${tituloLimpio}` : tituloLimpio;
 
     const grupDiv = document.createElement('div');
     grupDiv.className = 'preview-grupo';
 
-    // Cabecera del grupo
     const labelEl = document.createElement('div');
     labelEl.className = 'preview-grupo-label';
     labelEl.textContent = label;
@@ -863,19 +912,22 @@ function generar() {
     const row = document.createElement('div');
     row.className = 'preview-cards-row';
 
-    for (const { item, idx } of entries) {
-      const { subtitulo: sub, titulo: tit } = extraerSubtitulo(item.pelicula.titulo);
-      const horasTexto = item.horas.map(formatoHora).join(' · ');
+    for (const bloque of bloquesDePeli) {
+      const idx = _carteleStore.length;
+      _carteleStore.push(buildCartelHTML(bloque));
+
+      const { subtitulo: sub, titulo: tit } = extraerSubtitulo(bloque.pelicula.titulo);
+      const horasTexto = bloque.horas.map(formatoHora).join(' · ');
+      const diasTexto = bloque.dias.join(', ');
 
       const card = document.createElement('div');
       card.className = 'preview-thumb';
-      card.dataset.idx = idx;
       card.addEventListener('click', () => mostrarModal(idx));
 
-      if (!item.esNuevo) {
+      if (!bloque.esNuevo) {
         const badge = document.createElement('div');
         badge.className = 'badge-reutiliza';
-        badge.textContent = '= ' + item.reutilizarDesde;
+        badge.textContent = '= ' + bloque.reutilizarDesde;
         card.appendChild(badge);
       }
 
@@ -895,9 +947,10 @@ function generar() {
       sep.className = 'pt-horas-sep';
       card.appendChild(sep);
 
+      // Días (puede ser uno o varios)
       const diaEl = document.createElement('div');
       diaEl.className = 'pt-dia';
-      diaEl.textContent = item.dia;
+      diaEl.textContent = diasTexto;
       card.appendChild(diaEl);
 
       const horasEl = document.createElement('div');
