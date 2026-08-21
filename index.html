@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="icon.png">
 <title>Horarios Taquilla — Cines Babel</title>
 <style>
 @font-face {
@@ -187,7 +188,7 @@ body { font-family: 'ABCOracle', sans-serif; background: #e8e8e8; color: #000; }
   .cartel-pagina {
     page-break-before: always; break-before: page;
     display: flex; justify-content: center;
-    padding-top: 2cm;
+    padding-top: 0.8cm;
   }
   .cartel-pagina:first-child { page-break-before: auto; break-before: auto; }
 }
@@ -200,7 +201,7 @@ body { font-family: 'ABCOracle', sans-serif; background: #e8e8e8; color: #000; }
   width: 21cm;
   background: #fff;
   text-align: center;
-  padding: 2cm 1.5cm 1.5cm;
+  padding: 0.8cm 1.5cm 1.5cm;
   display: flex; flex-direction: column; align-items: center;
   page-break-inside: avoid; break-inside: avoid;
 }
@@ -244,11 +245,13 @@ body { font-family: 'ABCOracle', sans-serif; background: #e8e8e8; color: #000; }
 /* Modal duplicados */
 @media screen {
   #modal-dup {
+    display: none;
     position: fixed; inset: 0; background: rgba(0,0,0,.6);
     z-index: 600; align-items: center; justify-content: center;
+  }
+  #modal-dup.visible {
     display: flex;
   }
-  #modal-dup:not(.visible) { display: none; }
   #modal-dup-inner {
     background: #fff; padding: 28px 28px 24px; max-width: 600px; width: 90%;
     max-height: 80vh; overflow-y: auto; position: relative;
@@ -258,9 +261,11 @@ body { font-family: 'ABCOracle', sans-serif; background: #e8e8e8; color: #000; }
   #modal-dup-tabla td:first-child { font-style: italic; font-weight: bold; white-space: nowrap; }
   #modal-dup-tabla td:last-child { color: #555; }
   #btn-dup {
+    display: none;
     background: #fff8e1; border: 1px solid #f39c12; color: #7a5c00;
     padding: 10px 16px; font-family: 'ABCOracle', sans-serif; font-size: 13px; cursor: pointer;
   }
+  #btn-dup.visible { display: inline-block; }
   #btn-dup:hover { background: #fff0b0; }
 }
 
@@ -333,7 +338,7 @@ body { font-family: 'ABCOracle', sans-serif; background: #e8e8e8; color: #000; }
     <h2>Vista previa — <span id="n-carteles">0</span> carteles</h2>
     <div class="preview-actions">
       <button onclick="document.getElementById('carteles-preview').classList.remove('visible'); document.getElementById('panel-sel').style.display='block'">← Volver</button>
-      <button id="btn-dup" style="display:none" onclick="document.getElementById('modal-dup').classList.add('visible')">♻️ Ver reutilizables</button>
+      <button id="btn-dup" onclick="document.getElementById('modal-dup').classList.add('visible')">♻️ Ver reutilizables</button>
       <button class="primario" onclick="window.print()">🖨 Imprimir / PDF</button>
     </div>
   </div>
@@ -341,7 +346,7 @@ body { font-family: 'ABCOracle', sans-serif; background: #e8e8e8; color: #000; }
 </div>
 
 <!-- Modal duplicados -->
-<div id="modal-dup" onclick="if(event.target===this)this.classList.remove('visible')" style="display:none">
+<div id="modal-dup" onclick="if(event.target===this)this.classList.remove('visible')"
   <div id="modal-dup-inner">
     <button onclick="document.getElementById('modal-dup').classList.remove('visible')" style="position:absolute;top:12px;right:16px;background:none;border:none;font-size:22px;cursor:pointer;line-height:1">×</button>
     <h3 id="modal-dup-titulo" style="font-family:'ABCSolar',sans-serif;font-size:16px;margin-bottom:10px"></h3>
@@ -826,18 +831,35 @@ function generar() {
   const carteles = calcularCarteles();
   if (!carteles.length) return;
 
-  // ── Agrupar por firma: carteles con idénticas horas se funden en uno
-  // Un "bloque" representa un único cartel físico, potencialmente válido para varios días
+  _carteleStore = [];
+
+  // ════════════════════════════════════════════
+  // IMPRESIÓN: un cartel por película × día
+  // Cada día es una página separada, con el día visible en el cartel
+  // ════════════════════════════════════════════
+  document.getElementById('carteles').innerHTML = carteles.map(c =>
+    `<div class="cartel-pagina">${buildCartelHTML({ ...c, dias: [c.dia] })}</div>`
+  ).join('');
+
+  const totalCarteles = carteles.length;
+  document.getElementById('n-carteles').textContent = totalCarteles;
+
+  // ════════════════════════════════════════════
+  // PREVIEW: agrupar días con horarios idénticos en un solo bloque
+  // bloque = { pelicula, horas, firma, dias[], esNuevo, reutilizarDesde }
+  // ════════════════════════════════════════════
   const bloquesPorFilm = new Map(); // titulo → [bloque, ...]
-  // bloque = { pelicula, horas, firma, dias:[], esNuevo, reutilizarDesde }
 
   for (const c of carteles) {
     const t = c.pelicula.titulo;
     if (!bloquesPorFilm.has(t)) bloquesPorFilm.set(t, []);
     const lista = bloquesPorFilm.get(t);
+    // Buscar bloque existente con la misma firma
     const existente = lista.find(b => b.firma === c.firma);
     if (existente) {
       existente.dias.push(c.dia);
+      // Si algún día del bloque es nuevo (primer impreso), el bloque es nuevo
+      if (c.esNuevo) { existente.esNuevo = true; existente.reutilizarDesde = null; }
     } else {
       lista.push({
         pelicula: c.pelicula,
@@ -850,54 +872,63 @@ function generar() {
     }
   }
 
-  // Lista plana de bloques únicos en el orden original de selección
-  const bloques = [];
-  for (const titulo of sel) {
-    const lista = bloquesPorFilm.get(titulo);
-    if (lista) lista.forEach(b => bloques.push(b));
+  // ── Aviso de reutilizables → botón + modal ──
+  // Un bloque es reutilizable si TODOS sus días son reutilizables
+  // (es decir, el bloque entero se puede sustituir por uno ya impreso)
+  const reutilizables = [];
+  for (const bloques of bloquesPorFilm.values()) {
+    for (const b of bloques) {
+      // Contar cuántos días de este bloque son reutilizables
+      const diasReutilizables = carteles.filter(
+        c => c.pelicula.titulo === b.pelicula.titulo && c.firma === b.firma && !c.esNuevo
+      );
+      if (diasReutilizables.length > 0) {
+        reutilizables.push({
+          bloque: b,
+          dias: diasReutilizables.map(c => c.dia),
+          reutilizarDesde: diasReutilizables[0].reutilizarDesde
+        });
+      }
+    }
   }
 
-  _carteleStore = [];
-  const totalCarteles = bloques.length;
-  document.getElementById('n-carteles').textContent = totalCarteles;
-
-  // ── Carteles imprimibles: un bloque = una página ──
-  document.getElementById('carteles').innerHTML = bloques.map(b =>
-    `<div class="cartel-pagina">${buildCartelHTML(b)}</div>`
-  ).join('');
-
-  // ── Aviso de reutilizables → modal ──
-  const reutilizables = bloques.filter(b => !b.esNuevo);
   const btnDup = document.getElementById('btn-dup');
   if (reutilizables.length > 0) {
-    btnDup.style.display = '';
+    btnDup.classList.add('visible');
     btnDup.textContent = `♻️ ${reutilizables.length} reutilizable${reutilizables.length > 1 ? 's' : ''}`;
 
-    // Construir tabla del modal
     let filas = '';
-    for (const b of reutilizables) {
-      const { titulo } = extraerSubtitulo(b.pelicula.titulo);
-      const diasStr = b.dias.join(', ');
-      filas += `<tr><td>${titulo}</td><td>${diasStr}</td><td>= ${b.reutilizarDesde}</td></tr>`;
+    for (const { bloque, dias, reutilizarDesde } of reutilizables) {
+      const { titulo } = extraerSubtitulo(bloque.pelicula.titulo);
+      filas += `<tr>
+        <td>${titulo}</td>
+        <td>${dias.join(', ')}</td>
+        <td>= ${reutilizarDesde}</td>
+      </tr>`;
     }
     document.getElementById('modal-dup-titulo').textContent =
       `♻️ ${reutilizables.length} cartel${reutilizables.length > 1 ? 'es' : ''} reutilizable${reutilizables.length > 1 ? 's' : ''}`;
     document.getElementById('modal-dup-tabla').innerHTML =
-      `<table><thead><tr style="font-size:11px;color:#888;text-transform:uppercase;letter-spacing:.06em">
-        <th style="text-align:left;padding-bottom:6px;padding-right:14px">Película</th>
-        <th style="text-align:left;padding-bottom:6px;padding-right:14px">Días</th>
-        <th style="text-align:left;padding-bottom:6px">Igual que</th>
-      </tr></thead><tbody>${filas}</tbody></table>`;
+      `<table>
+        <thead><tr style="font-size:11px;color:#888;text-transform:uppercase;letter-spacing:.06em">
+          <th style="text-align:left;padding-bottom:6px;padding-right:14px">Película</th>
+          <th style="text-align:left;padding-bottom:6px;padding-right:14px">Días</th>
+          <th style="text-align:left;padding-bottom:6px">Igual que</th>
+        </tr></thead>
+        <tbody>${filas}</tbody>
+      </table>`;
   } else {
-    btnDup.style.display = 'none';
+    btnDup.classList.remove('visible');
   }
 
-  // ── Preview agrupado por película ──
+  // ── Construir preview ──
   const preview = document.getElementById('preview-grupos');
   preview.innerHTML = '';
 
-  for (const [titulo, bloquesDePeli] of bloquesPorFilm) {
-    if (!sel.includes(titulo)) continue;
+  for (const titulo of sel) {
+    const bloques = bloquesPorFilm.get(titulo);
+    if (!bloques) continue;
+
     const { titulo: tituloLimpio, subtitulo } = extraerSubtitulo(titulo);
     const label = subtitulo ? `${subtitulo} — ${tituloLimpio}` : tituloLimpio;
 
@@ -912,7 +943,8 @@ function generar() {
     const row = document.createElement('div');
     row.className = 'preview-cards-row';
 
-    for (const bloque of bloquesDePeli) {
+    for (const bloque of bloques) {
+      // Guardar HTML del cartel (con todos los días listados) en el store
       const idx = _carteleStore.length;
       _carteleStore.push(buildCartelHTML(bloque));
 
@@ -920,14 +952,22 @@ function generar() {
       const horasTexto = bloque.horas.map(formatoHora).join(' · ');
       const diasTexto = bloque.dias.join(', ');
 
+      // ¿Algún día de este bloque es reutilizable?
+      const algunoReutilizable = carteles.some(
+        c => c.pelicula.titulo === titulo && c.firma === bloque.firma && !c.esNuevo
+      );
+
       const card = document.createElement('div');
       card.className = 'preview-thumb';
       card.addEventListener('click', () => mostrarModal(idx));
 
-      if (!bloque.esNuevo) {
+      if (algunoReutilizable) {
+        const primerReutilizable = carteles.find(
+          c => c.pelicula.titulo === titulo && c.firma === bloque.firma && !c.esNuevo
+        );
         const badge = document.createElement('div');
         badge.className = 'badge-reutiliza';
-        badge.textContent = '= ' + bloque.reutilizarDesde;
+        badge.textContent = '♻️ = ' + primerReutilizable.reutilizarDesde;
         card.appendChild(badge);
       }
 
@@ -947,7 +987,6 @@ function generar() {
       sep.className = 'pt-horas-sep';
       card.appendChild(sep);
 
-      // Días (puede ser uno o varios)
       const diaEl = document.createElement('div');
       diaEl.className = 'pt-dia';
       diaEl.textContent = diasTexto;
