@@ -1,4 +1,4 @@
-# LICENSE — Generador de Horarios de Taquilla
+# LICENSE — Generador de Horarios
 
 **Copyright (c) 2026 Pablo Goitia Martinez**
 
