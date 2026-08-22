@@ -177,7 +177,8 @@ body { font-family: 'ABCOracle', sans-serif; background: #e8e8e8; color: #000; }
     border: none; border-top: 1px solid #eee; margin: 6px 0;
   }
   .preview-thumb .pt-dia {
-    font-family: 'ABCSolar', sans-serif; font-size: 11px; color: #555; margin-bottom: 4px; font-weight: bold;
+    font-family: 'ABCSolar', sans-serif; font-size: 14px; color: #000;
+    margin-bottom: 4px; font-weight: bold; line-height: 1.3;
   }
   .preview-thumb .pt-horas { font-family: 'ABCOracle', sans-serif; font-size: 11px; line-height: 1.6; }
   .badge-reutiliza {
@@ -907,14 +908,31 @@ function generar() {
   _carteleStore = [];
 
   // ════════════════════════════════════════════
-  // IMPRESIÓN: un cartel por película × día
-  // Cada día es una página separada, con el día visible en el cartel
+  // IMPRESIÓN: una hoja por bloque de horario único
+  // Si Sábado y Jueves tienen los mismos horarios → una sola hoja
   // ════════════════════════════════════════════
-  document.getElementById('carteles').innerHTML = carteles.map(c =>
-    `<div class="cartel-pagina">${buildCartelHTML({ ...c, dias: [c.dia] })}</div>`
+  // Primero construimos los bloques, luego imprimimos
+  // (bloquesPorFilm se construye justo después — usamos una pasada previa)
+  const bloquesParaImprimir = [];
+  {
+    const firmasVistasImpresion = new Map(); // firma → primer bloque ya añadido
+    for (const c of carteles) {
+      const firma = c.firma;
+      if (!firmasVistasImpresion.has(firma)) {
+        // Recopilar todos los días con esta firma para este bloque
+        const diasDeFirma = carteles
+          .filter(x => x.firma === firma && x.pelicula.titulo === c.pelicula.titulo)
+          .map(x => x.dia);
+        firmasVistasImpresion.set(firma, true);
+        bloquesParaImprimir.push({ ...c, dias: diasDeFirma });
+      }
+    }
+  }
+  document.getElementById('carteles').innerHTML = bloquesParaImprimir.map(b =>
+    `<div class="cartel-pagina">${buildCartelHTML(b)}</div>`
   ).join('');
 
-  const totalCarteles = carteles.length;
+  const totalCarteles = bloquesParaImprimir.length;
   document.getElementById('n-carteles').textContent = totalCarteles;
 
   // ════════════════════════════════════════════
@@ -1050,6 +1068,12 @@ function generar() {
         card.appendChild(badge);
       }
 
+      // Día — primero y prominente para leerlo de un vistazo
+      const diaEl = document.createElement('div');
+      diaEl.className = 'pt-dia';
+      diaEl.textContent = diasTexto;
+      card.appendChild(diaEl);
+
       if (sub) {
         const subEl = document.createElement('div');
         subEl.className = 'pt-subtitulo';
@@ -1065,11 +1089,6 @@ function generar() {
       const sep = document.createElement('hr');
       sep.className = 'pt-horas-sep';
       card.appendChild(sep);
-
-      const diaEl = document.createElement('div');
-      diaEl.className = 'pt-dia';
-      diaEl.textContent = diasTexto;
-      card.appendChild(diaEl);
 
       const horasEl = document.createElement('div');
       horasEl.className = 'pt-horas';
