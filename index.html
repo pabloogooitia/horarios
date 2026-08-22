@@ -4,6 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="icon" href="icon.png">
+<link rel="apple-touch-icon" href="icon.png">
+<meta name="apple-mobile-web-app-title" content="Horarios Babel">
+<meta name="apple-mobile-web-app-capable" content="yes">
 <title>Horarios Taquilla — Cines Babel</title>
 <style>
 @font-face {
@@ -744,12 +747,15 @@ function extraerSubtitulo(tituloCompleto) {
 // DUPLICADOS
 // ════════════════
 
+// La firma identifica un "mismo cartel": misma película, mismas horas exactas
+// NO usamos sort() — el orden de las horas importa para comparar identicidad
 function firmaCartel(titulo, horas) {
-  return titulo + '|' + horas.filter(Boolean).sort().join(',');
+  return titulo + '|' + horas.filter(Boolean).join(',');
 }
 
 function calcularCarteles() {
   const rango = fechasEnRango();
+  // firmasVistas: firma → primer día que tiene esos horarios (el "original")
   const firmasVistas = new Map();
   const resultado = [];
 
@@ -766,16 +772,23 @@ function calcularCarteles() {
       const horasFiltradas = dia.horas.filter(Boolean);
       const firma = firmaCartel(titulo, horasFiltradas);
       if (firmasVistas.has(firma)) {
-        resultado.push({ pelicula: p, dia: dia.nombre, horas: horasFiltradas, esNuevo: false, reutilizarDesde: firmasVistas.get(firma) });
+        // Este día tiene exactamente los mismos horarios que otro anterior → reutilizable
+        resultado.push({
+          pelicula: p, dia: dia.nombre, horas: horasFiltradas,
+          firma, esNuevo: false, reutilizarDesde: firmasVistas.get(firma)
+        });
       } else {
+        // Primer día con estos horarios → hay que imprimir
         firmasVistas.set(firma, dia.nombre);
-        resultado.push({ pelicula: p, dia: dia.nombre, horas: horasFiltradas, esNuevo: true, reutilizarDesde: null });
+        resultado.push({
+          pelicula: p, dia: dia.nombre, horas: horasFiltradas,
+          firma, esNuevo: true, reutilizarDesde: null
+        });
       }
     }
   }
   return resultado;
 }
-
 
 
 // ════════════════════════════════════════════
@@ -846,7 +859,8 @@ function generar() {
 
   // ════════════════════════════════════════════
   // PREVIEW: agrupar días con horarios idénticos en un solo bloque
-  // bloque = { pelicula, horas, firma, dias[], esNuevo, reutilizarDesde }
+  // Un bloque agrupa todos los días de una misma película que tienen
+  // exactamente las mismas horas. Se muestra como una sola tarjeta.
   // ════════════════════════════════════════════
   const bloquesPorFilm = new Map(); // titulo → [bloque, ...]
 
@@ -854,66 +868,70 @@ function generar() {
     const t = c.pelicula.titulo;
     if (!bloquesPorFilm.has(t)) bloquesPorFilm.set(t, []);
     const lista = bloquesPorFilm.get(t);
-    // Buscar bloque existente con la misma firma
+    // Buscar bloque existente con la misma firma (= mismas horas exactas)
     const existente = lista.find(b => b.firma === c.firma);
     if (existente) {
+      // Añadir este día al bloque existente
       existente.dias.push(c.dia);
-      // Si algún día del bloque es nuevo (primer impreso), el bloque es nuevo
-      if (c.esNuevo) { existente.esNuevo = true; existente.reutilizarDesde = null; }
+      // El bloque es "nuevo" (hay que imprimir al menos uno) si algún día es nuevo
+      if (c.esNuevo) existente.esNuevo = true;
     } else {
       lista.push({
         pelicula: c.pelicula,
         horas: c.horas,
         firma: c.firma,
         dias: [c.dia],
-        esNuevo: c.esNuevo,
-        reutilizarDesde: c.reutilizarDesde
+        esNuevo: c.esNuevo,       // true = hay que imprimir
+        reutilizarDesde: c.esNuevo ? null : c.reutilizarDesde
       });
     }
   }
 
   // ── Aviso de reutilizables → botón + modal ──
-  // Un bloque es reutilizable si TODOS sus días son reutilizables
-  // (es decir, el bloque entero se puede sustituir por uno ya impreso)
-  const reutilizables = [];
-  for (const bloques of bloquesPorFilm.values()) {
-    for (const b of bloques) {
-      // Contar cuántos días de este bloque son reutilizables
-      const diasReutilizables = carteles.filter(
-        c => c.pelicula.titulo === b.pelicula.titulo && c.firma === b.firma && !c.esNuevo
-      );
-      if (diasReutilizables.length > 0) {
-        reutilizables.push({
-          bloque: b,
-          dias: diasReutilizables.map(c => c.dia),
-          reutilizarDesde: diasReutilizables[0].reutilizarDesde
-        });
-      }
-    }
-  }
+  // Reutilizable = un día que tiene exactamente los mismos horarios que otro día anterior
+  // (esNuevo: false en calcularCarteles)
+  const diasReutilizables = carteles.filter(c => !c.esNuevo);
 
   const btnDup = document.getElementById('btn-dup');
-  if (reutilizables.length > 0) {
+  if (diasReutilizables.length > 0) {
     btnDup.classList.add('visible');
-    btnDup.textContent = `♻️ ${reutilizables.length} reutilizable${reutilizables.length > 1 ? 's' : ''}`;
+    btnDup.textContent = `♻️ ${diasReutilizables.length} reutilizable${diasReutilizables.length > 1 ? 's' : ''}`;
+
+    // Agrupar por (película, firma) para mostrar de forma compacta
+    const gruposReutilizables = new Map(); // firma → { titulo, dias[], reutilizarDesde, horas }
+    for (const c of diasReutilizables) {
+      const key = c.firma;
+      if (!gruposReutilizables.has(key)) {
+        const { titulo } = extraerSubtitulo(c.pelicula.titulo);
+        gruposReutilizables.set(key, {
+          titulo,
+          horas: c.horas,
+          dias: [],
+          reutilizarDesde: c.reutilizarDesde
+        });
+      }
+      gruposReutilizables.get(key).dias.push(c.dia);
+    }
 
     let filas = '';
-    for (const { bloque, dias, reutilizarDesde } of reutilizables) {
-      const { titulo } = extraerSubtitulo(bloque.pelicula.titulo);
+    for (const { titulo, dias, reutilizarDesde, horas } of gruposReutilizables.values()) {
+      const horasStr = horas.map(formatoHora).join(' · ');
       filas += `<tr>
         <td>${titulo}</td>
         <td>${dias.join(', ')}</td>
         <td>= ${reutilizarDesde}</td>
+        <td style="color:#888">${horasStr}</td>
       </tr>`;
     }
     document.getElementById('modal-dup-titulo').textContent =
-      `♻️ ${reutilizables.length} cartel${reutilizables.length > 1 ? 'es' : ''} reutilizable${reutilizables.length > 1 ? 's' : ''}`;
+      `♻️ ${diasReutilizables.length} día${diasReutilizables.length > 1 ? 's' : ''} reutilizable${diasReutilizables.length > 1 ? 's' : ''}`;
     document.getElementById('modal-dup-tabla').innerHTML =
       `<table>
         <thead><tr style="font-size:11px;color:#888;text-transform:uppercase;letter-spacing:.06em">
           <th style="text-align:left;padding-bottom:6px;padding-right:14px">Película</th>
           <th style="text-align:left;padding-bottom:6px;padding-right:14px">Días</th>
-          <th style="text-align:left;padding-bottom:6px">Igual que</th>
+          <th style="text-align:left;padding-bottom:6px;padding-right:14px">Igual que</th>
+          <th style="text-align:left;padding-bottom:6px">Horarios</th>
         </tr></thead>
         <tbody>${filas}</tbody>
       </table>`;
@@ -952,8 +970,11 @@ function generar() {
       const horasTexto = bloque.horas.map(formatoHora).join(' · ');
       const diasTexto = bloque.dias.join(', ');
 
-      // ¿Algún día de este bloque es reutilizable?
-      const algunoReutilizable = carteles.some(
+      // Días de este bloque que son reutilizables vs nuevos
+      const diasNuevosEnBloque = carteles.filter(
+        c => c.pelicula.titulo === titulo && c.firma === bloque.firma && c.esNuevo
+      );
+      const diasReutilEnBloque = carteles.filter(
         c => c.pelicula.titulo === titulo && c.firma === bloque.firma && !c.esNuevo
       );
 
@@ -961,13 +982,11 @@ function generar() {
       card.className = 'preview-thumb';
       card.addEventListener('click', () => mostrarModal(idx));
 
-      if (algunoReutilizable) {
-        const primerReutilizable = carteles.find(
-          c => c.pelicula.titulo === titulo && c.firma === bloque.firma && !c.esNuevo
-        );
+      // Badge solo si TODOS los días del bloque son reutilizables
+      if (diasNuevosEnBloque.length === 0 && diasReutilEnBloque.length > 0) {
         const badge = document.createElement('div');
         badge.className = 'badge-reutiliza';
-        badge.textContent = '♻️ = ' + primerReutilizable.reutilizarDesde;
+        badge.textContent = '♻️ = ' + diasReutilEnBloque[0].reutilizarDesde;
         card.appendChild(badge);
       }
 
