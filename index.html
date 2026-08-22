@@ -47,6 +47,14 @@ body { font-family: 'ABCOracle', sans-serif; background: #e8e8e8; color: #000; }
 }
 #barra-ctrl h1 { font-family: 'ABCSolar', sans-serif; font-size: 17px; letter-spacing: .02em; flex-shrink: 0; }
 .ctrl-sep { flex: 1; }
+#version-label {
+  font-family: 'ABCOracle', sans-serif;
+  font-size: 11px;
+  color: rgba(255,255,255,.5);
+  white-space: nowrap;
+  margin-left: 16px;
+  letter-spacing: .03em;
+}
 .cal-wrapper { position: relative; }
 #cal-btn {
   background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.25);
@@ -169,7 +177,7 @@ body { font-family: 'ABCOracle', sans-serif; background: #e8e8e8; color: #000; }
     border: none; border-top: 1px solid #eee; margin: 6px 0;
   }
   .preview-thumb .pt-dia {
-    font-family: 'ABCSolar', sans-serif; font-size: 7px; color: #888; margin-bottom: 4px;
+    font-family: 'ABCSolar', sans-serif; font-size: 11px; color: #555; margin-bottom: 4px; font-weight: bold;
   }
   .preview-thumb .pt-horas { font-family: 'ABCOracle', sans-serif; font-size: 11px; line-height: 1.6; }
   .badge-reutiliza {
@@ -349,9 +357,8 @@ body { font-family: 'ABCOracle', sans-serif; background: #e8e8e8; color: #000; }
       </div>
     </div>
   </div>
+  <div id="version-label">v0.6 · Desarrollado por Pablo Goitia</div>
 </div>
-
-<!-- Panel selección de películas -->
 <div id="panel-sel">
   <h2>Seleccionar películas</h2>
   <p class="panel-desc">Elige las películas cuyos carteles quieres generar.</p>
