@@ -114,6 +114,19 @@ body { font-family: 'ABCOracle', sans-serif; background: #e8e8e8; color: #000; }
   font-family: 'ABCSolar', sans-serif; line-height: 1.3;
 }
 .mini-card .mini-titulo { font-size: 10px; padding: 5px 7px; line-height: 1.3; font-family: 'ABCSolar', sans-serif; }
+.mini-rating {
+  display: flex; align-items: center; gap: 4px;
+  padding: 4px 7px 6px; border-top: 1px solid #eee;
+  font-size: 9px; font-family: 'ABCOracle', sans-serif; color: #555;
+}
+.mini-rating label { white-space: nowrap; }
+.mini-rating input[type=number] {
+  width: 36px; font-size: 10px; padding: 2px 3px;
+  border: 1px solid #ccc; font-family: 'ABCOracle', sans-serif;
+  text-align: center; -moz-appearance: textfield;
+}
+.mini-rating input[type=number]::-webkit-inner-spin-button,
+.mini-rating input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; }
 .mini-check {
   position: absolute; top: 5px; right: 5px; width: 18px; height: 18px;
   background: #000; color: #fff; font-size: 10px; display: none;
@@ -416,6 +429,24 @@ body { font-family: 'ABCOracle', sans-serif; background: #e8e8e8; color: #000; }
 
 const WORKER = 'https://babel-proxy.taquillacinesbabel.workers.dev/';
 let todas = [], fechas = [], sel = [], enRango = [];
+
+// ── Ratings: { titulo → número entero } persistidos en localStorage ──
+let ratings = {};
+try {
+  const saved = localStorage.getItem('babel_ratings');
+  if (saved) ratings = JSON.parse(saved);
+} catch(e) {}
+function saveRatings() {
+  try { localStorage.setItem('babel_ratings', JSON.stringify(ratings)); } catch(e) {}
+}
+function getRatingTexto(titulo) {
+  const n = ratings[titulo];
+  if (n === undefined || n === null || n === '') return '';
+  const num = parseInt(n, 10);
+  if (isNaN(num)) return '';
+  if (num < 7) return '(Apta para todos los públicos)';
+  return `(No recomendada para menores de ${num} años)`;
+}
 
 const DIA_MAP = {
   'lun':'L.','lunes':'L.','mar':'M.','martes':'M.',
@@ -744,8 +775,20 @@ function refGrid() {
       : `<div class="mini-no-img">${td}</div>`;
     const div = document.createElement('div');
     div.className = 'mini-card' + (esSel ? ' sel' : '');
+    const ratingGuardado = ratings[p.titulo] !== undefined ? ratings[p.titulo] : '';
     div.innerHTML = imgHtml +
-      `<div class="mini-titulo">${td}</div><div class="mini-check">✓</div>`;
+      `<div class="mini-titulo">${td}</div>` +
+      `<div class="mini-rating"><label>Edad:</label><input type="number" min="0" max="18" step="1" placeholder="—" value="${ratingGuardado}"></div>` +
+      `<div class="mini-check">✓</div>`;
+    // Rating input: guardar al cambiar, sin propagar el click a la card
+    const ratingInput = div.querySelector('input[type=number]');
+    ratingInput.addEventListener('click', e => e.stopPropagation());
+    ratingInput.addEventListener('change', e => {
+      const val = e.target.value.trim();
+      if (val === '') { delete ratings[p.titulo]; }
+      else { ratings[p.titulo] = parseInt(val, 10); }
+      saveRatings();
+    });
     div.addEventListener('click', () => toggleSel(p.titulo));
     return div;
   });
@@ -881,7 +924,10 @@ function buildCartelHTML(item) {
     ? `<div class="c-subtitulo">${subtitulo}</div>`
     : '';
 
-  const ratingHTML = `<div class="c-rating">(No recomendada para menores de «x» años)</div>`;
+  const ratingTexto = getRatingTexto(pelicula.titulo);
+  const ratingHTML = ratingTexto
+    ? `<div class="c-rating">${ratingTexto}</div>`
+    : '';
 
   const horasHTML = horas.map(h => `<div class="c-hora">${formatoHora(h)}</div>`).join('');
 
@@ -1085,6 +1131,14 @@ function generar() {
       titEl.className = 'pt-titulo';
       titEl.textContent = tit;
       card.appendChild(titEl);
+
+      const ratingPT = getRatingTexto(bloque.pelicula.titulo);
+      if (ratingPT) {
+        const ratingEl = document.createElement('div');
+        ratingEl.className = 'pt-rating';
+        ratingEl.textContent = ratingPT;
+        card.appendChild(ratingEl);
+      }
 
       const sep = document.createElement('hr');
       sep.className = 'pt-horas-sep';
