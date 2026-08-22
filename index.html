@@ -55,6 +55,46 @@ body { font-family: 'ABCOracle', sans-serif; background: #e8e8e8; color: #000; }
   margin-left: 16px;
   letter-spacing: .03em;
 }
+#sb-status {
+  display: flex; align-items: center; gap: 5px;
+  font-family: 'ABCOracle', sans-serif; font-size: 11px;
+  color: rgba(255,255,255,.6); white-space: nowrap; cursor: pointer;
+  padding: 4px 8px; border: 1px solid rgba(255,255,255,.15);
+  background: none; letter-spacing: .03em;
+}
+#sb-status:hover { background: rgba(255,255,255,.1); }
+#sb-dot { font-size: 9px; }
+
+/* Modal Supabase */
+#sb-modal-overlay {
+  display: none; position: fixed; inset: 0;
+  background: rgba(0,0,0,.55); z-index: 500;
+  align-items: center; justify-content: center;
+}
+#sb-modal-overlay.visible { display: flex; }
+#sb-modal {
+  background: #fff; color: #000; padding: 28px 28px 24px;
+  width: min(420px, 92vw); font-family: 'ABCOracle', sans-serif;
+}
+#sb-modal h3 {
+  font-family: 'ABCSolar', sans-serif; font-size: 17px; margin-bottom: 6px;
+}
+#sb-modal p { font-size: 12px; color: #666; margin-bottom: 20px; line-height: 1.5; }
+.sb-field { margin-bottom: 14px; }
+.sb-field label { display: block; font-size: 11px; color: #888; margin-bottom: 4px; letter-spacing: .04em; text-transform: uppercase; }
+.sb-field input {
+  width: 100%; box-sizing: border-box;
+  border: 1px solid #ccc; padding: 9px 10px;
+  font-family: 'ABCOracle', sans-serif; font-size: 13px;
+}
+.sb-field input:focus { outline: none; border-color: #000; }
+.sb-actions { display: flex; gap: 10px; margin-top: 20px; }
+.sb-actions button {
+  flex: 1; padding: 10px; font-family: 'ABCOracle', sans-serif;
+  font-size: 13px; border: 1px solid #000; cursor: pointer; background: none;
+}
+.sb-actions button.primario { background: #000; color: #fff; }
+#sb-feedback { font-size: 12px; margin-top: 12px; min-height: 18px; text-align: center; }
 .cal-wrapper { position: relative; }
 #cal-btn {
   background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.25);
@@ -223,7 +263,23 @@ body { font-family: 'ABCOracle', sans-serif; background: #e8e8e8; color: #000; }
     padding-top: 0.8cm;
     box-sizing: border-box;
     overflow: hidden;
+    position: relative;
   }
+  /* Franjas blancas que tapan el header/footer que iOS Safari pinta */
+  .cartel-pagina::before,
+  .cartel-pagina::after {
+    content: '';
+    display: block;
+    position: absolute;
+    left: -5cm; right: -5cm;
+    height: 2cm;
+    background: #ffffff !important;
+    z-index: 9999;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .cartel-pagina::before { top: -2cm; }
+  .cartel-pagina::after  { bottom: -2cm; }
   .cartel-pagina:first-child { page-break-before: auto; break-before: auto; }
 }
 @media screen {
@@ -337,6 +393,20 @@ body { font-family: 'ABCOracle', sans-serif; background: #e8e8e8; color: #000; }
   body.imprimiendo-individual #carteles,
   body.imprimiendo-individual #modal-overlay { display: none !important; }
   body.imprimiendo-individual #cartel-individual { display: flex !important; }
+  #cartel-individual::before,
+  #cartel-individual::after {
+    content: '';
+    display: block;
+    position: absolute;
+    left: -5cm; right: -5cm;
+    height: 2cm;
+    background: #ffffff !important;
+    z-index: 9999;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  #cartel-individual::before { top: -2cm; }
+  #cartel-individual::after  { bottom: -2cm; }
 }
 #cartel-individual {
   display: none;
@@ -345,6 +415,7 @@ body { font-family: 'ABCOracle', sans-serif; background: #e8e8e8; color: #000; }
   padding-top: 0.8cm;
   box-sizing: border-box;
   overflow: hidden;
+  position: relative;
 }
 </style>
 </head>
@@ -379,7 +450,31 @@ body { font-family: 'ABCOracle', sans-serif; background: #e8e8e8; color: #000; }
       </div>
     </div>
   </div>
+  <button id="sb-status" onclick="abrirSbModal()">
+    <span id="sb-dot">⚫</span><span id="sb-label">Base de datos</span>
+  </button>
   <div id="version-label">v1.1 · Desarrollado por Pablo Goitia</div>
+</div>
+
+<!-- Modal configuración Supabase -->
+<div id="sb-modal-overlay">
+  <div id="sb-modal">
+    <h3>Conexión Supabase</h3>
+    <p>Los ratings se sincronizarán entre todos los dispositivos. Las credenciales se guardan solo en este navegador.</p>
+    <div class="sb-field">
+      <label>URL del proyecto</label>
+      <input id="sb-url-input" type="url" placeholder="https://xxxx.supabase.co">
+    </div>
+    <div class="sb-field">
+      <label>Anon key</label>
+      <input id="sb-key-input" type="password" placeholder="eyJ…">
+    </div>
+    <div class="sb-actions">
+      <button onclick="cerrarSbModal()">Cancelar</button>
+      <button class="primario" onclick="guardarSbConfig()">Conectar</button>
+    </div>
+    <div id="sb-feedback"></div>
+  </div>
 </div>
 <div id="panel-sel">
   <h2>Seleccionar películas</h2>
@@ -438,7 +533,103 @@ body { font-family: 'ABCOracle', sans-serif; background: #e8e8e8; color: #000; }
 const WORKER = 'https://babel-proxy.taquillacinesbabel.workers.dev/';
 let todas = [], fechas = [], sel = [], enRango = [];
 
-// ── Ratings: { titulo → número entero } persistidos en localStorage ──
+// ════════════════════════════════════════════
+// SUPABASE — configuración y cliente mínimo
+// ════════════════════════════════════════════
+let sbUrl = '', sbKey = '';
+try {
+  sbUrl = localStorage.getItem('babel_sb_url') || '';
+  sbKey = localStorage.getItem('babel_sb_key') || '';
+} catch(e) {}
+
+function sbConnected() { return !!(sbUrl && sbKey); }
+
+function setSbStatus(estado) {
+  // estado: 'ok' | 'error' | 'off'
+  const dot   = document.getElementById('sb-dot');
+  const label = document.getElementById('sb-label');
+  if (!dot) return;
+  if (estado === 'ok')    { dot.textContent = '🟢'; label.textContent = 'Sincronizado'; }
+  else if (estado === 'error') { dot.textContent = '🔴'; label.textContent = 'Sin conexión'; }
+  else                    { dot.textContent = '⚫'; label.textContent = 'Base de datos'; }
+}
+
+async function sbFetch(path, opts = {}) {
+  const res = await fetch(sbUrl + '/rest/v1/' + path, {
+    ...opts,
+    headers: {
+      'apikey': sbKey,
+      'Authorization': 'Bearer ' + sbKey,
+      'Content-Type': 'application/json',
+      'Prefer': opts.prefer || 'return=minimal',
+      ...(opts.headers || {})
+    }
+  });
+  if (!res.ok) throw new Error('Supabase ' + res.status);
+  return res;
+}
+
+async function cargarRatingsSupabase() {
+  const res = await sbFetch('horarios_ratings?select=titulo,valor');
+  const data = await res.json();
+  data.forEach(row => { ratings[row.titulo] = row.valor; });
+}
+
+async function upsertRating(titulo, valor) {
+  if (!sbConnected()) return;
+  try {
+    await sbFetch('horarios_ratings', {
+      method: 'POST',
+      prefer: 'resolution=merge-duplicates,return=minimal',
+      headers: { 'Prefer': 'resolution=merge-duplicates,return=minimal' },
+      body: JSON.stringify({ titulo, valor })
+    });
+  } catch(e) { console.warn('Supabase upsert:', e.message); }
+}
+
+async function deleteRating(titulo) {
+  if (!sbConnected()) return;
+  try {
+    await sbFetch('horarios_ratings?titulo=eq.' + encodeURIComponent(titulo), { method: 'DELETE' });
+  } catch(e) { console.warn('Supabase delete:', e.message); }
+}
+
+function abrirSbModal() {
+  document.getElementById('sb-url-input').value = sbUrl;
+  document.getElementById('sb-key-input').value = sbKey;
+  document.getElementById('sb-feedback').textContent = '';
+  document.getElementById('sb-modal-overlay').classList.add('visible');
+}
+function cerrarSbModal() {
+  document.getElementById('sb-modal-overlay').classList.remove('visible');
+}
+async function guardarSbConfig() {
+  const url = document.getElementById('sb-url-input').value.trim().replace(/\/$/, '');
+  const key = document.getElementById('sb-key-input').value.trim();
+  const fb  = document.getElementById('sb-feedback');
+  if (!url || !key) { fb.textContent = 'Rellena los dos campos.'; fb.style.color = '#c00'; return; }
+  fb.textContent = 'Conectando…'; fb.style.color = '#888';
+  try {
+    const res = await fetch(url + '/rest/v1/horarios_ratings?select=titulo&limit=1', {
+      headers: { 'apikey': key, 'Authorization': 'Bearer ' + key }
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    sbUrl = url; sbKey = key;
+    localStorage.setItem('babel_sb_url', sbUrl);
+    localStorage.setItem('babel_sb_key', sbKey);
+    // Recargar todos los ratings desde Supabase
+    ratings = {};
+    await cargarRatingsSupabase();
+    saveRatings();
+    setSbStatus('ok');
+    fb.textContent = '✓ Conectado correctamente.'; fb.style.color = '#080';
+    setTimeout(() => { cerrarSbModal(); refGrid(); }, 1000);
+  } catch(e) {
+    fb.textContent = 'Error: ' + e.message; fb.style.color = '#c00';
+  }
+}
+
+// ── Ratings: { titulo → número entero } con localStorage como caché ──
 let ratings = {};
 try {
   const saved = localStorage.getItem('babel_ratings');
@@ -681,6 +872,21 @@ async function arrancar() {
   calAnyo = ini ? ini.getFullYear() : new Date().getFullYear();
 
   actualizarLabel();
+
+  // Cargar ratings desde Supabase si hay conexión configurada
+  if (sbConnected()) {
+    try {
+      await cargarRatingsSupabase();
+      saveRatings(); // actualizar caché local
+      setSbStatus('ok');
+    } catch(e) {
+      console.warn('Supabase al arrancar:', e.message);
+      setSbStatus('error');
+    }
+  } else {
+    setSbStatus('off');
+  }
+
   document.getElementById('carga').style.display = 'none';
   document.getElementById('barra-ctrl').style.display = 'flex';
   document.getElementById('panel-sel').style.display = 'block';
@@ -793,9 +999,16 @@ function refGrid() {
     ratingInput.addEventListener('click', e => e.stopPropagation());
     ratingInput.addEventListener('change', e => {
       const val = e.target.value.trim();
-      if (val === '') { delete ratings[p.titulo]; }
-      else { ratings[p.titulo] = parseInt(val, 10); }
-      saveRatings();
+      if (val === '') {
+        delete ratings[p.titulo];
+        saveRatings();
+        deleteRating(p.titulo);
+      } else {
+        const num = parseInt(val, 10);
+        ratings[p.titulo] = num;
+        saveRatings();
+        upsertRating(p.titulo, num);
+      }
     });
     div.addEventListener('click', () => toggleSel(p.titulo));
     return div;
