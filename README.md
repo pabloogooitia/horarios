@@ -1,6 +1,6 @@
 # babel-horarios
 
-Generador de carteles de horarios de taquilla para Cines Babel.
+Generador de carteles de horarios.
 
 ## Licencia
 
