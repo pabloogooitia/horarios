@@ -1,4 +1,4 @@
-# babel-horarios
+# horarios
 
 Generador de carteles de horarios.
 
