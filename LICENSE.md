@@ -40,7 +40,7 @@ Este software se proporciona **tal cual**, sin garantías de ningún tipo, expre
 
 ## Sobre esta herramienta
 
-**Generador de Horarios de Taquilla** es una herramienta interna desarrollada para automatizar la creación de los carteles de horarios para las diferentes películas, detectando qué días comparten pases idénticos para evitar reimpresiones innecesarias. Exporta directamente a PDF desde Chrome en formato A4 vertical con tipografía corporativa.
+**Generador de Horarios** es una herramienta interna desarrollada para automatizar la creación de los carteles de horarios para las diferentes películas, detectando qué días comparten pases idénticos para evitar reimpresiones innecesarias. Exporta directamente a PDF desde Chrome en formato A4 vertical con tipografía corporativa.
 
 ---
 
