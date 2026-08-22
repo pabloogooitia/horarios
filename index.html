@@ -186,12 +186,16 @@ body { font-family: 'ABCOracle', sans-serif; background: #e8e8e8; color: #000; }
 @media print {
   * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   body, html { margin: 0; padding: 0; background: #fff; }
-  #carga, #barra-ctrl, #panel-sel, #carteles-preview { display: none !important; }
+  #carga, #barra-ctrl, #panel-sel, #carteles-preview,
+  #modal-dup, #modal-overlay { display: none !important; }
   #carteles { display: block !important; }
   .cartel-pagina {
     page-break-before: always; break-before: page;
+    page-break-after: always; break-after: page;
+    page-break-inside: avoid; break-inside: avoid;
     display: flex; justify-content: center;
     padding-top: 0.8cm;
+    min-height: 29.7cm;
   }
   .cartel-pagina:first-child { page-break-before: auto; break-before: auto; }
 }
@@ -246,23 +250,23 @@ body { font-family: 'ABCOracle', sans-serif; background: #e8e8e8; color: #000; }
 }
 
 /* Modal duplicados */
+#modal-dup {
+  display: none;
+  position: fixed; inset: 0; background: rgba(0,0,0,.6);
+  z-index: 600; align-items: center; justify-content: center;
+}
+#modal-dup.visible {
+  display: flex;
+}
+#modal-dup-inner {
+  background: #fff; padding: 28px 28px 24px; max-width: 600px; width: 90%;
+  max-height: 80vh; overflow-y: auto; position: relative;
+}
+#modal-dup-tabla table { border-collapse: collapse; font-size: 13px; width: 100%; }
+#modal-dup-tabla td { padding: 5px 14px 5px 0; border-bottom: 1px solid #eee; }
+#modal-dup-tabla td:first-child { font-style: italic; font-weight: bold; white-space: nowrap; }
+#modal-dup-tabla td:last-child { color: #555; }
 @media screen {
-  #modal-dup {
-    display: none;
-    position: fixed; inset: 0; background: rgba(0,0,0,.6);
-    z-index: 600; align-items: center; justify-content: center;
-  }
-  #modal-dup.visible {
-    display: flex;
-  }
-  #modal-dup-inner {
-    background: #fff; padding: 28px 28px 24px; max-width: 600px; width: 90%;
-    max-height: 80vh; overflow-y: auto; position: relative;
-  }
-  #modal-dup-tabla table { border-collapse: collapse; font-size: 13px; width: 100%; }
-  #modal-dup-tabla td { padding: 5px 14px 5px 0; border-bottom: 1px solid #eee; }
-  #modal-dup-tabla td:first-child { font-style: italic; font-weight: bold; white-space: nowrap; }
-  #modal-dup-tabla td:last-child { color: #555; }
   #btn-dup {
     display: none;
     background: #fff8e1; border: 1px solid #f39c12; color: #7a5c00;
@@ -276,17 +280,41 @@ body { font-family: 'ABCOracle', sans-serif; background: #e8e8e8; color: #000; }
 @media screen {
   #modal-overlay {
     display: none; position: fixed; inset: 0; background: rgba(0,0,0,.75);
-    z-index: 500; align-items: center; justify-content: center; overflow: auto;
+    z-index: 500; flex-direction: column; align-items: center; justify-content: flex-start;
+    overflow-y: auto; padding: 20px 0 40px;
   }
   #modal-overlay.visible { display: flex; }
+  #modal-barra {
+    display: flex; gap: 10px; margin-bottom: 16px; flex-shrink: 0;
+  }
+  #modal-barra button {
+    padding: 10px 20px; font-family: 'ABCOracle', sans-serif; font-size: 13px;
+    border: 1px solid #fff; background: none; color: #fff; cursor: pointer;
+  }
+  #modal-barra button.primario { background: #fff; color: #000; }
+  #modal-barra button:hover { opacity: .8; }
   #modal-inner {
-    background: #fff; position: relative; transform: scale(0.35); transform-origin: top center;
-    margin: 20px auto;
+    background: #fff; position: relative;
+    transform: scale(0.42); transform-origin: top center;
+    flex-shrink: 0;
+    /* Compensar espacio del scale para que no quede hueco abajo */
+    margin-bottom: calc((21cm * 0.42 - 21cm));
   }
   #modal-close {
-    position: fixed; top: 20px; right: 24px; background: #fff; border: none;
-    font-size: 28px; cursor: pointer; z-index: 501; line-height: 1; padding: 4px 10px;
+    display: none; /* reemplazado por botón en barra */
   }
+}
+/* Para imprimir hoja individual desde el modal */
+@media print {
+  body.imprimiendo-individual #carteles,
+  body.imprimiendo-individual #modal-overlay { display: none !important; }
+  body.imprimiendo-individual #cartel-individual { display: flex !important; }
+}
+#cartel-individual {
+  display: none;
+  justify-content: center;
+  padding-top: 0.8cm;
+  min-height: 29.7cm;
 }
 </style>
 </head>
@@ -360,9 +388,15 @@ body { font-family: 'ABCOracle', sans-serif; background: #e8e8e8; color: #000; }
 
 <!-- Modal cartel a tamaño completo -->
 <div id="modal-overlay" onclick="cerrarModal(event)">
-  <button id="modal-close" onclick="document.getElementById('modal-overlay').classList.remove('visible')">×</button>
+  <div id="modal-barra">
+    <button onclick="document.getElementById('modal-overlay').classList.remove('visible')">← Cerrar</button>
+    <button class="primario" onclick="imprimirIndividual()">🖨 Imprimir esta hoja</button>
+  </div>
   <div id="modal-inner"></div>
 </div>
+
+<!-- Contenedor solo para impresión individual -->
+<div id="cartel-individual"></div>
 
 <!-- Carteles imprimibles -->
 <div id="carteles"></div>
@@ -503,13 +537,29 @@ function fechaToDate(f) {
 }
 
 function rangoSemanaDefecto(fechas, fin = false) {
+  // Busca el día de hoy en las fechas disponibles.
+  // Si no está hoy, busca el más cercano hacia delante.
   const hoy = new Date(); hoy.setHours(0,0,0,0);
-  const dow = hoy.getDay();
-  const diasHastaVie = (5 - dow + 7) % 7;
-  const vie = new Date(hoy); vie.setDate(hoy.getDate() + diasHastaVie);
-  const target = new Date(vie);
-  if (fin) target.setDate(vie.getDate() + 6);
-  return fechas.find(f => { const d = fechaToDate(f); return d && d.getTime() === target.getTime(); }) || null;
+  if (!fin) {
+    // Inicio: hoy, o el primer día disponible a partir de hoy
+    for (const f of fechas) {
+      const d = fechaToDate(f);
+      if (d && d.getTime() >= hoy.getTime()) return f;
+    }
+    return fechas[0] || null;
+  } else {
+    // Fin: el jueves de la semana en curso (hoy + días hasta jueves)
+    const dow = hoy.getDay(); // 0=dom
+    const diasHastaJue = (4 - dow + 7) % 7;
+    const jue = new Date(hoy); jue.setDate(hoy.getDate() + diasHastaJue);
+    // Buscar ese jueves en las fechas, o el último día disponible hasta él
+    let ultimo = null;
+    for (const f of fechas) {
+      const d = fechaToDate(f);
+      if (d && d.getTime() <= jue.getTime()) ultimo = f;
+    }
+    return ultimo || fechas[fechas.length - 1] || null;
+  }
 }
 
 // ════════════════
@@ -678,18 +728,22 @@ function refGrid() {
   enRango = todas.filter(p => p.dias.some(d => rango.includes(d.nombre)));
   sel = sel.filter(t => enRango.some(p => p.titulo === t));
 
-  document.getElementById('gminis').innerHTML = enRango.map(p => {
+  const cards = enRango.map(p => {
     const esSel = sel.includes(p.titulo);
     const td = p.titulo.length > 35 ? p.titulo.substring(0, 35) + '…' : p.titulo;
     const imgHtml = p.poster
       ? `<img src="${p.poster}" alt="" loading="lazy">`
       : `<div class="mini-no-img">${td}</div>`;
-    return `<div class="mini-card${esSel ? ' sel' : ''}" onclick="toggleSel(${JSON.stringify(p.titulo)})">
-      ${imgHtml}
-      <div class="mini-titulo">${td}</div>
-      <div class="mini-check">✓</div>
-    </div>`;
-  }).join('');
+    const div = document.createElement('div');
+    div.className = 'mini-card' + (esSel ? ' sel' : '');
+    div.innerHTML = imgHtml +
+      `<div class="mini-titulo">${td}</div><div class="mini-check">✓</div>`;
+    div.addEventListener('click', () => toggleSel(p.titulo));
+    return div;
+  });
+  const gminis = document.getElementById('gminis');
+  gminis.innerHTML = '';
+  cards.forEach(c => gminis.appendChild(c));
 
   actualizarBotonGenerar();
 }
@@ -747,8 +801,7 @@ function extraerSubtitulo(tituloCompleto) {
 // DUPLICADOS
 // ════════════════
 
-// La firma identifica un "mismo cartel": misma película, mismas horas exactas
-// NO usamos sort() — el orden de las horas importa para comparar identicidad
+// La firma identifica un "mismo cartel": misma película, mismas horas exactas en el mismo orden
 function firmaCartel(titulo, horas) {
   return titulo + '|' + horas.filter(Boolean).join(',');
 }
@@ -1028,12 +1081,23 @@ function generar() {
 }
 
 function mostrarModal(idx) {
-  document.getElementById('modal-inner').innerHTML = _carteleStore[idx] || '';
+  const html = _carteleStore[idx] || '';
+  document.getElementById('modal-inner').innerHTML = html;
+  document.getElementById('cartel-individual').innerHTML = html;
   document.getElementById('modal-overlay').classList.add('visible');
 }
 function cerrarModal(e) {
   if (e.target === document.getElementById('modal-overlay'))
     document.getElementById('modal-overlay').classList.remove('visible');
+}
+function imprimirIndividual() {
+  document.getElementById('modal-overlay').classList.remove('visible');
+  document.body.classList.add('imprimiendo-individual');
+  setTimeout(() => {
+    window.print();
+    document.body.classList.remove('imprimiendo-individual');
+    document.getElementById('modal-overlay').classList.add('visible');
+  }, 100);
 }
 
 document.addEventListener('click', e => {
