@@ -207,17 +207,22 @@ body { font-family: 'ABCOracle', sans-serif; background: #e8e8e8; color: #000; }
    ════════════════════════════════════════════ */
 @media print {
   * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  @page {
+    size: A4;
+    margin: 0mm;
+  }
   body, html { margin: 0; padding: 0; background: #fff; }
   #carga, #barra-ctrl, #panel-sel, #carteles-preview,
   #modal-dup, #modal-overlay { display: none !important; }
   #carteles { display: block !important; }
   .cartel-pagina {
     page-break-before: always; break-before: page;
-    page-break-after: always; break-after: page;
-    page-break-inside: avoid; break-inside: avoid;
-    display: flex; justify-content: center;
+    page-break-after: always;  break-after: page;
+    page-break-inside: avoid;  break-inside: avoid;
+    display: flex; justify-content: center; align-items: flex-start;
     padding-top: 0.8cm;
-    min-height: 29.7cm;
+    box-sizing: border-box;
+    overflow: hidden;
   }
   .cartel-pagina:first-child { page-break-before: auto; break-before: auto; }
 }
@@ -328,6 +333,7 @@ body { font-family: 'ABCOracle', sans-serif; background: #e8e8e8; color: #000; }
 }
 /* Para imprimir hoja individual desde el modal */
 @media print {
+  @page { size: A4; margin: 0mm; }
   body.imprimiendo-individual #carteles,
   body.imprimiendo-individual #modal-overlay { display: none !important; }
   body.imprimiendo-individual #cartel-individual { display: flex !important; }
@@ -335,8 +341,10 @@ body { font-family: 'ABCOracle', sans-serif; background: #e8e8e8; color: #000; }
 #cartel-individual {
   display: none;
   justify-content: center;
+  align-items: flex-start;
   padding-top: 0.8cm;
-  min-height: 29.7cm;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 </style>
 </head>
@@ -371,7 +379,7 @@ body { font-family: 'ABCOracle', sans-serif; background: #e8e8e8; color: #000; }
       </div>
     </div>
   </div>
-  <div id="version-label">v0.6 · Desarrollado por Pablo Goitia</div>
+  <div id="version-label">v1.1 · Desarrollado por Pablo Goitia</div>
 </div>
 <div id="panel-sel">
   <h2>Seleccionar películas</h2>
