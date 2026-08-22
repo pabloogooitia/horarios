@@ -1,6 +1,5 @@
 # Generador de horarios
 
-Generador de carteles de horarios.
 
 ## Licencia
 
