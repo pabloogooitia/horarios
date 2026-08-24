@@ -46,6 +46,10 @@ body { font-family: 'ABCOracle', sans-serif; background: #e8e8e8; color: #000; }
   padding: 14px 24px; display: none; align-items: center; gap: 16px; flex-wrap: wrap;
 }
 #barra-ctrl h1 { font-family: 'ABCSolar', sans-serif; font-size: 17px; letter-spacing: .02em; flex-shrink: 0; }
+#barra-ctrl .app-icon {
+  width: 36px; height: 36px; border-radius: 8px;
+  object-fit: cover; flex-shrink: 0;
+}
 .ctrl-sep { flex: 1; }
 #version-label {
   font-family: 'ABCOracle', sans-serif;
@@ -440,6 +444,7 @@ body { font-family: 'ABCOracle', sans-serif; background: #e8e8e8; color: #000; }
 
 <!-- Barra de control -->
 <div id="barra-ctrl">
+  <img src="icon.png" alt="" class="app-icon">
   <h1>Horarios Taquilla</h1>
   <div class="ctrl-sep"></div>
   <div class="cal-wrapper">
@@ -462,7 +467,7 @@ body { font-family: 'ABCOracle', sans-serif; background: #e8e8e8; color: #000; }
   <button id="sb-status" onclick="abrirSbModal()">
     <span id="sb-dot">⚫</span><span id="sb-label">Base de datos</span>
   </button>
-  <div id="version-label">v1.4 · Desarrollado por Pablo Goitia</div>
+  <div id="version-label">v1.5 · Desarrollado por Pablo Goitia</div>
 </div>
 
 <!-- Modal configuración Supabase -->
