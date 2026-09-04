@@ -780,11 +780,19 @@ function ordenF(s) {
 }
 function cmpFecha(a, b) { return ordenF(a) - ordenF(b); }
 
-function fechaToDate(f) {
+function fechaToDate(f, refAnyo) {
   const m = f.match(/(\d+)\s+(\w+)/);
   if (!m) return null;
   const mes = MESES.findIndex(x => m[2].toLowerCase().startsWith(x.toLowerCase()));
-  const anyo = new Date().getFullYear() + (mes < new Date().getMonth() ? 1 : 0);
+  // Si se pasa un año de referencia (p.ej. el del mes visible en el calendario),
+  // lo usamos directamente. Si no, calculamos a partir del año actual del sistema.
+  let anyo;
+  if (refAnyo !== undefined) {
+    anyo = refAnyo;
+  } else {
+    const hoy = new Date();
+    anyo = hoy.getFullYear() + (mes < hoy.getMonth() ? 1 : 0);
+  }
   return new Date(anyo, mes, parseInt(m[1]));
 }
 
@@ -924,8 +932,8 @@ function renderCal() {
   const mes = base.getMonth(); const anyo = base.getFullYear();
   document.getElementById('cal-nav-label').textContent = MESES_CAL[mes] + ' ' + anyo;
 
-  const iniDate = calIni ? fechaToDate(calIni) : null;
-  const finDate = calFin ? fechaToDate(calFin) : null;
+  const iniDate = calIni ? fechaToDate(calIni, anyo) : null;
+  const finDate = calFin ? fechaToDate(calFin, anyo) : null;
   const primerDia = new Date(anyo, mes, 1).getDay();
   const diasMes = new Date(anyo, mes + 1, 0).getDate();
   const offset = (primerDia + 6) % 7;
@@ -935,7 +943,7 @@ function renderCal() {
 
   for (let d = 1; d <= diasMes; d++) {
     const fecha = new Date(anyo, mes, d);
-    const nombre = fechas.find(f => { const x = fechaToDate(f); return x && x.getTime() === fecha.getTime(); }) || null;
+    const nombre = fechas.find(f => { const x = fechaToDate(f, anyo); return x && x.getTime() === fecha.getTime(); }) || null;
     let cls = 'cal-day';
     if (!nombre) cls += ' fuera';
     else {
