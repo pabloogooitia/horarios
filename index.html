@@ -467,7 +467,7 @@ body { font-family: 'ABCOracle', sans-serif; background: #e8e8e8; color: #000; }
   <button id="sb-status" onclick="abrirSbModal()">
     <span id="sb-dot">⚫</span><span id="sb-label">Base de datos</span>
   </button>
-  <div id="version-label">v1.6 · Desarrollado por Pablo Goitia</div>
+  <div id="version-label">v1.5 · Desarrollado por Pablo Goitia</div>
 </div>
 
 <!-- Modal configuración Supabase -->
@@ -784,16 +784,33 @@ function fechaToDate(f, refAnyo) {
   const m = f.match(/(\d+)\s+(\w+)/);
   if (!m) return null;
   const mes = MESES.findIndex(x => m[2].toLowerCase().startsWith(x.toLowerCase()));
-  // Si se pasa un año de referencia (p.ej. el del mes visible en el calendario),
-  // lo usamos directamente. Si no, calculamos a partir del año actual del sistema.
-  let anyo;
+  if (mes < 0) return null;
+  const dia = parseInt(m[1]);
+
+  // Si se pasa año explícito (desde renderCal), lo usamos directamente.
   if (refAnyo !== undefined) {
-    anyo = refAnyo;
-  } else {
-    const hoy = new Date();
-    anyo = hoy.getFullYear() + (mes < hoy.getMonth() ? 1 : 0);
+    return new Date(refAnyo, mes, dia);
   }
-  return new Date(anyo, mes, parseInt(m[1]));
+
+  // Sin año explícito: elegir el año cuya fecha quede más cerca de hoy,
+  // con preferencia por el futuro próximo sobre el pasado remoto.
+  // Esto resuelve el caso en que el cine tiene fechas de la semana pasada
+  // Y fechas de la semana que viene, ambas del año actual.
+  const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
+  const anyoActual = hoy.getFullYear();
+  const candidatoActual   = new Date(anyoActual,     mes, dia);
+  const candidatoSiguiente = new Date(anyoActual + 1, mes, dia);
+
+  // Distancias en días (positivo = futuro, negativo = pasado)
+  const distActual    = (candidatoActual.getTime()    - hoy.getTime()) / 86400000;
+  const distSiguiente = (candidatoSiguiente.getTime() - hoy.getTime()) / 86400000;
+
+  // Usar el año actual si la fecha no está más de 60 días en el pasado,
+  // de lo contrario usar el año siguiente.
+  if (distActual >= -60) {
+    return candidatoActual;
+  }
+  return candidatoSiguiente;
 }
 
 function rangoSemanaDefecto(fechas, fin = false) {
@@ -889,9 +906,11 @@ async function arrancar() {
 
   calIni = rangoSemanaDefecto(fechas) || fechas[0];
   calFin  = rangoSemanaDefecto(fechas, true) || fechas[fechas.length - 1];
-  const ini = calIni ? fechaToDate(calIni) : new Date();
-  calMes = ini ? ini.getMonth() : new Date().getMonth();
-  calAnyo = ini ? ini.getFullYear() : new Date().getFullYear();
+  // calMes y calAnyo anclan el calendario al mes real de hoy (sistema),
+  // independientemente de qué fechas tenga la programación.
+  const hoyRef = new Date();
+  calMes  = hoyRef.getMonth();
+  calAnyo = hoyRef.getFullYear();
 
   actualizarLabel();
 
@@ -973,6 +992,9 @@ function clickDia(nombre) {
 
 function semanaActual() {
   calStep = 0;
+  const hoyRef = new Date();
+  calMes  = hoyRef.getMonth();
+  calAnyo = hoyRef.getFullYear();
   calIni = rangoSemanaDefecto(fechas) || fechas[0];
   calFin  = rangoSemanaDefecto(fechas, true) || fechas[fechas.length - 1];
   renderCal(); actualizarLabel();
