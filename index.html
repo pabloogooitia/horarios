@@ -255,11 +255,88 @@ body { font-family: 'ABCOracle', sans-serif; background: #e8e8e8; color: #000; }
     margin-bottom: 4px; font-weight: bold; line-height: 1.3;
   }
   .preview-thumb .pt-horas { font-family: 'ABCOracle', sans-serif; font-size: 11px; line-height: 1.6; }
-  .badge-reutiliza {
-    position: absolute; top: 4px; right: 4px; background: #f39c12;
-    color: #fff; font-size: 8px; padding: 2px 4px;
-    font-family: 'ABCSolar', sans-serif;
+
+  /* Switch: incluir el resumen semanal en la impresión.
+     Arranca apagado en cada carga — imprimirlo es una decisión consciente. */
+  #sw-resumen {
+    display: flex; align-items: center; gap: 9px;
+    padding: 9px 16px; border: 1px solid #ddd; background: none;
+    font-family: 'ABCOracle', sans-serif; font-size: 13px;
+    color: #777; cursor: pointer; user-select: none;
   }
+  #sw-resumen input { position: absolute; opacity: 0; width: 0; height: 0; }
+  .sw-track {
+    position: relative; width: 34px; height: 18px; flex-shrink: 0;
+    background: #c4c4c4; border-radius: 9px; transition: background .18s;
+  }
+  .sw-knob {
+    position: absolute; top: 2px; left: 2px; width: 14px; height: 14px;
+    background: #fff; border-radius: 50%; transition: transform .18s;
+  }
+  #sw-resumen input:checked ~ .sw-track { background: #27ae60; }
+  #sw-resumen input:checked ~ .sw-track .sw-knob { transform: translateX(16px); }
+  #sw-resumen.on { color: #000; border-color: #27ae60; }
+  #sw-resumen input:focus-visible ~ .sw-track { box-shadow: 0 0 0 2px rgba(0,0,0,.4); }
+}
+
+/* ════════════════════════════════════════════
+   RESUMEN SEMANAL
+   A4 vertical, la misma orientación que los carteles, para que
+   entre en el mismo trabajo de impresión sin trucos de @page.
+   Codificado en blanco y negro: la impresora de taquilla no
+   tiene por qué imprimir en color.
+   ════════════════════════════════════════════ */
+.resumen-hoja {
+  width: 21cm; padding: 1.7cm 1.4cm;
+  box-sizing: border-box; background: #fff; color: #000;
+}
+.resumen-hoja h2 {
+  font-family: 'ABCSolar', sans-serif; font-size: 16pt; margin-bottom: 0.7cm;
+}
+.resumen-tabla {
+  width: 100%; border-collapse: collapse; table-layout: fixed;
+  font-family: 'ABCOracle', sans-serif; font-size: 9pt;
+}
+.resumen-tabla th, .resumen-tabla td {
+  border: 0.5pt solid #b0b0b0; padding: 5pt 2pt; text-align: center;
+}
+.resumen-tabla td { white-space: nowrap; }
+.resumen-tabla thead th {
+  border: none; font-weight: normal; font-size: 8.5pt; padding-bottom: 5pt;
+}
+.resumen-tabla th.r-peli {
+  width: 5.4cm; text-align: left; padding-left: 0;
+  border-left: none; border-top: none; border-bottom: none;
+  font-family: 'ABCOracle', sans-serif; font-size: 8.5pt; font-weight: normal;
+}
+.r-vacia { background: #f5f5f5; }
+.r-sigue { color: #9a9a9a; }
+.r-mueve { background: #e2e2e2; }
+.r-fin   { color: #000; }
+.r-nueva { background: #000; color: #fff; }
+.resumen-leyenda {
+  margin-top: 0.7cm; font-family: 'ABCOracle', sans-serif;
+  font-size: 8.5pt; line-height: 2.1;
+}
+.r-muestra {
+  display: inline-block; width: 1.7cm; text-align: center;
+  border: 0.5pt solid #b0b0b0; padding: 2pt 0; margin-right: 8pt; font-size: 8pt;
+}
+.resumen-sello { margin-top: 0.5cm; font-size: 7.5pt; color: #777; }
+
+@media screen {
+  #resumen-print { display: none; }
+  #resumen-preview { display: none; margin-bottom: 26px; }
+  body.con-resumen #resumen-preview { display: block; }
+  #resumen-preview .resumen-hoja { width: 100%; padding: 18px; border: 1px solid #ddd; }
+  #resumen-preview .resumen-hoja h2 { font-size: 14px; margin-bottom: 14px; }
+  #resumen-preview .resumen-tabla { font-size: 11px; }
+  #resumen-preview .resumen-tabla th,
+  #resumen-preview .resumen-tabla td { padding: 6px 2px; }
+  #resumen-preview .resumen-tabla th.r-peli { width: 32%; font-size: 10px; }
+  #resumen-preview .resumen-leyenda { margin-top: 14px; font-size: 11px; line-height: 1.9; }
+  #resumen-preview .r-muestra { width: 58px; font-size: 10px; }
+  #resumen-preview .resumen-sello { margin-top: 10px; font-size: 10px; }
 }
 
 /* ════════════════════════════════════════════
@@ -274,7 +351,7 @@ body { font-family: 'ABCOracle', sans-serif; background: #e8e8e8; color: #000; }
   }
   body, html { margin: 0; padding: 0; background: #fff; }
   #carga, #barra-ctrl, #panel-sel, #carteles-preview,
-  #modal-dup, #modal-overlay { display: none !important; }
+  #modal-overlay { display: none !important; }
   #carteles { display: block !important; }
   .cartel-pagina {
     page-break-before: always; break-before: page;
@@ -302,6 +379,27 @@ body { font-family: 'ABCOracle', sans-serif; background: #e8e8e8; color: #000; }
   .cartel-pagina::before { top: -2cm; }
   .cartel-pagina::after  { bottom: -2cm; }
   .cartel-pagina:first-child { page-break-before: auto; break-before: auto; }
+
+  /* El resumen sale como página 1, delante de todos los carteles */
+  #resumen-print { display: none; }
+  body.con-resumen #resumen-print {
+    display: block;
+    page-break-after: always; break-after: page;
+    position: relative; overflow: hidden;
+  }
+  /* Mismas franjas blancas que en los carteles, para tapar el
+     header/footer que iOS Safari pinta al imprimir */
+  body.con-resumen #resumen-print::before,
+  body.con-resumen #resumen-print::after {
+    content: ''; display: block; position: absolute;
+    left: -5cm; right: -5cm; height: 2cm;
+    background: #ffffff !important; z-index: 9999;
+    -webkit-print-color-adjust: exact; print-color-adjust: exact;
+  }
+  body.con-resumen #resumen-print::before { top: -2cm; }
+  body.con-resumen #resumen-print::after  { bottom: -2cm; }
+  /* Al imprimir una hoja suelta desde el modal, el resumen no entra */
+  body.imprimiendo-individual #resumen-print { display: none !important; }
 }
 @media screen {
   #carteles { display: none; }
@@ -353,32 +451,6 @@ body { font-family: 'ABCOracle', sans-serif; background: #e8e8e8; color: #000; }
   line-height: 1.15;
 }
 
-/* Modal duplicados */
-#modal-dup {
-  display: none;
-  position: fixed; inset: 0; background: rgba(0,0,0,.6);
-  z-index: 600; align-items: center; justify-content: center;
-}
-#modal-dup.visible {
-  display: flex;
-}
-#modal-dup-inner {
-  background: #fff; padding: 28px 28px 24px; max-width: 600px; width: 90%;
-  max-height: 80vh; overflow-y: auto; position: relative;
-}
-#modal-dup-tabla table { border-collapse: collapse; font-size: 13px; width: 100%; }
-#modal-dup-tabla td { padding: 5px 14px 5px 0; border-bottom: 1px solid #eee; }
-#modal-dup-tabla td:first-child { font-style: italic; font-weight: bold; white-space: nowrap; }
-#modal-dup-tabla td:last-child { color: #555; }
-@media screen {
-  #btn-dup {
-    display: none;
-    background: #fff8e1; border: 1px solid #f39c12; color: #7a5c00;
-    padding: 10px 16px; font-family: 'ABCOracle', sans-serif; font-size: 13px; cursor: pointer;
-  }
-  #btn-dup.visible { display: inline-block; }
-  #btn-dup:hover { background: #fff0b0; }
-}
 
 /* Modal cartel a tamaño completo */
 @media screen {
@@ -475,7 +547,7 @@ body { font-family: 'ABCOracle', sans-serif; background: #e8e8e8; color: #000; }
   <button id="sb-status" onclick="abrirSbModal()">
     <span id="sb-dot">⚫</span><span id="sb-label">Base de datos</span>
   </button>
-  <div id="version-label">v1.9 · Desarrollado por Pablo Goitia</div>
+  <div id="version-label">v1.10 · Desarrollado por Pablo Goitia</div>
 </div>
 
 <!-- Modal configuración Supabase -->
@@ -515,22 +587,20 @@ body { font-family: 'ABCOracle', sans-serif; background: #e8e8e8; color: #000; }
     <h2>Vista previa — <span id="n-carteles">0</span> carteles</h2>
     <div class="preview-actions">
       <button onclick="document.getElementById('carteles-preview').classList.remove('visible'); document.getElementById('panel-sel').style.display='block'">← Volver</button>
-      <button id="btn-dup" onclick="document.getElementById('modal-dup').classList.add('visible')">♻️ Ver reutilizables</button>
+      <label id="sw-resumen">
+        <input type="checkbox" id="chk-resumen" onchange="toggleResumen(this.checked)">
+        <span class="sw-track"><span class="sw-knob"></span></span>
+        Resumen semanal
+      </label>
       <button class="primario" onclick="window.print()">🖨 Imprimir / PDF</button>
     </div>
   </div>
+  <div id="resumen-preview"></div>
   <div id="preview-grupos"></div>
 </div>
 
-<!-- Modal duplicados -->
-<div id="modal-dup" onclick="if(event.target===this)this.classList.remove('visible')">
-  <div id="modal-dup-inner">
-    <button onclick="document.getElementById('modal-dup').classList.remove('visible')" style="position:absolute;top:12px;right:16px;background:none;border:none;font-size:22px;cursor:pointer;line-height:1">×</button>
-    <h3 id="modal-dup-titulo" style="font-family:'ABCSolar',sans-serif;font-size:16px;margin-bottom:10px"></h3>
-    <p style="font-size:13px;margin-bottom:12px">Mismos horarios que el día indicado — <strong>no hace falta reimprimir</strong>:</p>
-    <div id="modal-dup-tabla"></div>
-  </div>
-</div>
+<!-- Resumen semanal para impresión (página 1) -->
+<div id="resumen-print"></div>
 
 <!-- Modal cartel a tamaño completo -->
 <div id="modal-overlay" onclick="cerrarModal(event)">
@@ -917,7 +987,22 @@ async function arrancar() {
   setMsg('Procesando películas…');
   await tick();
   todas = parsear(html);
-  if (!todas.length) { errorMsg('No se encontraron películas.'); return; }
+  if (!todas.length) {
+    // El worker respondió correctamente pero en el cuerpo no hay películas.
+    // Mostramos qué llegó: casi siempre es el worker sirviendo otra cosa
+    // (error de Cloudflare con estado 200, cuota agotada, verificación…).
+    const cuerpo = html.trim();
+    const muestra = cuerpo.length < 400
+      ? cuerpo.slice(0, 300)
+      : cuerpo.slice(0, 140) + '…';
+    errorMsg(
+      'El worker respondió, pero en lo que devolvió no hay ninguna película.\n\n' +
+      'Respuesta: ' + cuerpo.length + ' caracteres\n' +
+      muestra + '\n\n' +
+      'Abre ' + WORKER + ' en una pestaña para ver qué está sirviendo.'
+    );
+    return;
+  }
 
   const conFicha = todas.filter(p => p.fichaUrl);
   if (conFicha.length) {
@@ -1274,6 +1359,102 @@ function buildCartelHTML(item) {
 }
 
 // ════════════════
+// RESUMEN SEMANAL
+// ════════════════
+
+// Para cada película y cada día del rango decide qué hacer con la hoja
+// al descolgarla esa noche:
+//   sigue  → mañana lleva los mismos horarios, no se toca
+//   → día  → vuelve a hacer falta más adelante: a la funda de ese día
+//   tirar  → no se repite dentro del rango
+function calcularResumen(carteles) {
+  const rango = fechasEnRango();
+  // Orden de la cartelera, no el orden en que se fueron clicando
+  const titulos = enRango.map(p => p.titulo).filter(t => sel.includes(t));
+
+  const firmaDe = new Map();   // "titulo|dia" → firma
+  const nuevas  = new Set();   // "titulo|dia" de las hojas recién impresas
+  carteles.forEach(c => {
+    const k = c.pelicula.titulo + '|' + c.dia;
+    firmaDe.set(k, c.firma);
+    if (c.esNuevo) nuevas.add(k);
+  });
+
+  const filas = titulos.map(titulo => {
+    const celdas = rango.map((dia, i) => {
+      const firma = firmaDe.get(titulo + '|' + dia);
+      if (!firma) return { estado: 'vacia', texto: '' };
+      const nueva = nuevas.has(titulo + '|' + dia);
+      // ¿Mañana sigue colgada exactamente la misma hoja?
+      if (firmaDe.get(titulo + '|' + rango[i + 1]) === firma)
+        return { estado: 'sigue', texto: 'sigue', nueva };
+      // ¿Vuelve a hacer falta algún día posterior del rango?
+      for (let j = i + 2; j < rango.length; j++) {
+        if (firmaDe.get(titulo + '|' + rango[j]) === firma)
+          return { estado: 'mueve', texto: '→ ' + diaCorto(rango[j]), nueva };
+      }
+      return { estado: 'fin', texto: 'tirar', nueva };
+    });
+    return { titulo: extraerSubtitulo(titulo).titulo, celdas };
+  });
+
+  return { dias: rango, filas };
+}
+
+// "J. 17 Sep" → "J 17". Las cabeceras van completas (y así se etiquetan
+// las fundas), pero dentro de la casilla no cabe el mes.
+function diaCorto(nombre) {
+  const m = nombre.match(/^(\S+)\s+(\d+)/);
+  return m ? m[1].replace('.', '') + ' ' + m[2] : nombre;
+}
+
+function selloFechaHora() {
+  const d = new Date();
+  const dosDig = n => String(n).padStart(2, '0');
+  return `${d.getDate()} ${MESES[d.getMonth()].toLowerCase()} ${d.getFullYear()} · ${dosDig(d.getHours())}:${dosDig(d.getMinutes())}`;
+}
+
+function buildResumenHTML(carteles) {
+  const { dias, filas } = calcularResumen(carteles);
+  if (!filas.length || !dias.length) return '';
+
+  const cabecera = dias.map(d => `<th>${esc(d)}</th>`).join('');
+  const cuerpo = filas.map(f => {
+    const celdas = f.celdas.map(c => {
+      if (c.estado === 'vacia') return '<td class="r-vacia"></td>';
+      const cls = 'r-' + c.estado + (c.nueva ? ' r-nueva' : '');
+      return `<td class="${cls}">${esc(c.texto)}</td>`;
+    }).join('');
+    return `<tr><th class="r-peli">${esc(f.titulo)}</th>${celdas}</tr>`;
+  }).join('');
+
+  const titulo = dias.length > 1
+    ? `Carteles · ${esc(dias[0])} – ${esc(dias[dias.length - 1])}`
+    : `Carteles · ${esc(dias[0])}`;
+
+  return `<div class="resumen-hoja">
+    <h2>${titulo}</h2>
+    <table class="resumen-tabla">
+      <thead><tr><th class="r-peli"></th>${cabecera}</tr></thead>
+      <tbody>${cuerpo}</tbody>
+    </table>
+    <div class="resumen-leyenda">
+      <div><span class="r-muestra r-nueva">sigue</span>Hoja recién impresa: va a la funda de ese día</div>
+      <div><span class="r-muestra r-mueve">→ ${esc(diaCorto(dias[dias.length - 1]))}</span>Esa noche pasa a la funda del día indicado</div>
+      <div><span class="r-muestra r-sigue">sigue</span>No se toca: al día siguiente lleva los mismos horarios</div>
+      <div><span class="r-muestra r-fin">tirar</span>No vuelve a hacer falta en este rango</div>
+      <div><span class="r-muestra r-vacia">&nbsp;</span>Sin sesión ese día</div>
+    </div>
+    <div class="resumen-sello">Generado el ${esc(selloFechaHora())}</div>
+  </div>`;
+}
+
+function toggleResumen(activo) {
+  document.body.classList.toggle('con-resumen', activo);
+  document.getElementById('sw-resumen').classList.toggle('on', activo);
+}
+
+// ════════════════
 // GENERAR
 // ════════════════
 
@@ -1315,6 +1496,12 @@ function generar() {
   const totalCarteles = bloquesParaImprimir.length;
   document.getElementById('n-carteles').textContent = totalCarteles;
 
+  // Resumen semanal: se construye siempre, pero solo se imprime si el
+  // switch está encendido. Así alternarlo es instantáneo.
+  const resumenHTML = buildResumenHTML(carteles);
+  document.getElementById('resumen-print').innerHTML = resumenHTML;
+  document.getElementById('resumen-preview').innerHTML = resumenHTML;
+
   // ════════════════════════════════════════════
   // PREVIEW: agrupar días con horarios idénticos en un solo bloque
   // Un bloque agrupa todos los días de una misma película que tienen
@@ -1343,58 +1530,6 @@ function generar() {
         reutilizarDesde: c.esNuevo ? null : c.reutilizarDesde
       });
     }
-  }
-
-  // ── Aviso de reutilizables → botón + modal ──
-  // Reutilizable = un día que tiene exactamente los mismos horarios que otro día anterior
-  // (esNuevo: false en calcularCarteles)
-  const diasReutilizables = carteles.filter(c => !c.esNuevo);
-
-  const btnDup = document.getElementById('btn-dup');
-  if (diasReutilizables.length > 0) {
-    btnDup.classList.add('visible');
-    btnDup.textContent = `♻️ ${diasReutilizables.length} reutilizable${diasReutilizables.length > 1 ? 's' : ''}`;
-
-    // Agrupar por (película, firma) para mostrar de forma compacta
-    const gruposReutilizables = new Map(); // firma → { titulo, dias[], reutilizarDesde, horas }
-    for (const c of diasReutilizables) {
-      const key = c.firma;
-      if (!gruposReutilizables.has(key)) {
-        const { titulo } = extraerSubtitulo(c.pelicula.titulo);
-        gruposReutilizables.set(key, {
-          titulo,
-          horas: c.horas,
-          dias: [],
-          reutilizarDesde: c.reutilizarDesde
-        });
-      }
-      gruposReutilizables.get(key).dias.push(c.dia);
-    }
-
-    let filas = '';
-    for (const { titulo, dias, reutilizarDesde, horas } of gruposReutilizables.values()) {
-      const horasStr = horas.map(formatoHora).join(' · ');
-      filas += `<tr>
-        <td>${esc(titulo)}</td>
-        <td>${esc(dias.join(', '))}</td>
-        <td>= ${esc(reutilizarDesde)}</td>
-        <td style="color:#888">${esc(horasStr)}</td>
-      </tr>`;
-    }
-    document.getElementById('modal-dup-titulo').textContent =
-      `♻️ ${diasReutilizables.length} día${diasReutilizables.length > 1 ? 's' : ''} reutilizable${diasReutilizables.length > 1 ? 's' : ''}`;
-    document.getElementById('modal-dup-tabla').innerHTML =
-      `<table>
-        <thead><tr style="font-size:11px;color:#888;text-transform:uppercase;letter-spacing:.06em">
-          <th style="text-align:left;padding-bottom:6px;padding-right:14px">Película</th>
-          <th style="text-align:left;padding-bottom:6px;padding-right:14px">Días</th>
-          <th style="text-align:left;padding-bottom:6px;padding-right:14px">Igual que</th>
-          <th style="text-align:left;padding-bottom:6px">Horarios</th>
-        </tr></thead>
-        <tbody>${filas}</tbody>
-      </table>`;
-  } else {
-    btnDup.classList.remove('visible');
   }
 
   // ── Construir preview ──
@@ -1428,25 +1563,9 @@ function generar() {
       const horasTexto = bloque.horas.map(formatoHora).join(' · ');
       const diasTexto = bloque.dias.join(', ');
 
-      // Días de este bloque que son reutilizables vs nuevos
-      const diasNuevosEnBloque = carteles.filter(
-        c => c.pelicula.titulo === titulo && c.firma === bloque.firma && c.esNuevo
-      );
-      const diasReutilEnBloque = carteles.filter(
-        c => c.pelicula.titulo === titulo && c.firma === bloque.firma && !c.esNuevo
-      );
-
       const card = document.createElement('div');
       card.className = 'preview-thumb';
       card.addEventListener('click', () => mostrarModal(idx));
-
-      // Badge solo si TODOS los días del bloque son reutilizables
-      if (diasNuevosEnBloque.length === 0 && diasReutilEnBloque.length > 0) {
-        const badge = document.createElement('div');
-        badge.className = 'badge-reutiliza';
-        badge.textContent = '♻️ = ' + diasReutilEnBloque[0].reutilizarDesde;
-        card.appendChild(badge);
-      }
 
       // Día — primero y prominente para leerlo de un vistazo
       const diaEl = document.createElement('div');
