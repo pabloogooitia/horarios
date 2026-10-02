@@ -547,7 +547,7 @@ body { font-family: 'ABCOracle', sans-serif; background: #e8e8e8; color: #000; }
   <button id="sb-status" onclick="abrirSbModal()">
     <span id="sb-dot">⚫</span><span id="sb-label">Base de datos</span>
   </button>
-  <div id="version-label">v1.10 · Desarrollado por Pablo Goitia</div>
+  <div id="version-label">v1.11 · Desarrollado por Pablo Goitia</div>
 </div>
 
 <!-- Modal configuración Supabase -->
@@ -766,32 +766,45 @@ function parsearFicha(html) {
   const doc = new DOMParser().parseFromString(html, 'text/html');
   const tabla = doc.querySelector('.tabla-sesiones');
   if (!tabla) return [];
-  const filas = tabla.querySelectorAll('tr');
-  let maxCols = 0;
-  filas.forEach(f => { const c = f.querySelectorAll('td').length; if (c > maxCols) maxCols = c; });
-  const numH = Math.max(0, maxCols - 1);
-  const dias = [];
-  filas.forEach(fila => {
-    const celdas = [...fila.querySelectorAll('td')];
-    if (!celdas.length) return;
-    const raw = celdas[0].textContent.trim();
-    if (!raw) return;
-    const nombre = normalizarDia(raw);
-    const horas = [];
-    for (let i = 1; i <= numH; i++) {
-      const c = celdas[i];
-      if (!c) { horas.push(''); continue; }
-      const t = (c.querySelector('a') || c).textContent.trim();
-      horas.push(/^\d{1,2}:\d{2}$/.test(t) ? t : '');
-    }
-    dias.push({nombre, horas});
-  });
-  return dias;
+  return [...tabla.querySelectorAll('tr')].map(leerFilaSesiones).filter(Boolean);
 }
 
 function fusionarDias(pelicula, diasNuevos) {
-  const existentes = new Set(pelicula.dias.map(d => d.nombre));
-  diasNuevos.forEach(d => { if (!existentes.has(d.nombre)) pelicula.dias.push(d); });
+  diasNuevos.forEach(d => {
+    const ex = pelicula.dias.find(x => x.nombre === d.nombre);
+    if (!ex) { pelicula.dias.push(d); return; }
+    // El día ya venía de la cartelera: añadir los pases que solo aparezcan en la ficha
+    d.horas.forEach(h => { if (h && !ex.horas.includes(h)) ex.horas.push(h); });
+    ex.horas = ex.horas.filter(Boolean).sort((a, b) => minutosHora(a) - minutosHora(b));
+  });
+}
+
+// ── Lectura de una fila de la tabla de sesiones ──
+// Una celda puede contener más de un pase apilado (p. ej. "19:00" y "19:40"
+// en la misma casilla de la web). Antes solo se leía el primer enlace de la
+// celda y el resto se perdía. Ahora se recogen todas las horas de la fila,
+// sin duplicados y ordenadas cronológicamente.
+const RE_HORA = /([01]?\d|2[0-3]):([0-5]\d)/g;
+function minutosHora(h) { const [hh, mm] = h.split(':').map(Number); return hh * 60 + mm; }
+function leerFilaSesiones(fila) {
+  const celdas = [...fila.querySelectorAll('td')];
+  if (!celdas.length) return null;
+  const raw = celdas[0].textContent.trim();
+  if (!raw) return null;
+  const horas = [];
+  celdas.slice(1).forEach(c => {
+    // Si la celda tiene enlaces, cada enlace es un pase; si no, el texto entero
+    const enlaces = [...c.querySelectorAll('a')];
+    const textos = enlaces.length ? enlaces.map(a => a.textContent) : [c.textContent];
+    textos.forEach(t => {
+      for (const m of t.matchAll(RE_HORA)) {
+        const h = m[1].padStart(2, '0') + ':' + m[2];
+        if (!horas.includes(h)) horas.push(h);
+      }
+    });
+  });
+  horas.sort((a, b) => minutosHora(a) - minutosHora(b));
+  return { nombre: normalizarDia(raw), horas };
 }
 
 function parsear(html) {
@@ -814,26 +827,7 @@ function parsear(html) {
     }
     const tabla = bloque.querySelector('.tabla-sesiones');
     if (!tabla) return;
-    const filas = tabla.querySelectorAll('tr');
-    let maxCols = 0;
-    filas.forEach(f => { const c = f.querySelectorAll('td').length; if (c > maxCols) maxCols = c; });
-    const numH = Math.max(0, maxCols - 1);
-    const dias = [];
-    filas.forEach(fila => {
-      const celdas = [...fila.querySelectorAll('td')];
-      if (!celdas.length) return;
-      const raw = celdas[0].textContent.trim();
-      if (!raw) return;
-      const nombre = normalizarDia(raw);
-      const horas = [];
-      for (let i = 1; i <= numH; i++) {
-        const c = celdas[i];
-        if (!c) { horas.push(''); continue; }
-        const t = (c.querySelector('a') || c).textContent.trim();
-        horas.push(/^\d{1,2}:\d{2}$/.test(t) ? t : '');
-      }
-      dias.push({nombre, horas});
-    });
+    const dias = [...tabla.querySelectorAll('tr')].map(leerFilaSesiones).filter(Boolean);
     let fichaUrl = '';
     const acciones = bloque.querySelector('.pelicula-actions');
     if (acciones) {
