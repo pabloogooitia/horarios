@@ -520,6 +520,8 @@ body { font-family: 'ABCOracle', sans-serif; background: #e8e8e8; color: #000; }
 .en-pasos{margin:0;padding-left:20px;font-size:14px;line-height:1.6;color:rgba(255,255,255,.85);}
 .en-pasos li{margin-bottom:4px;}
 .en-pasos b{font-weight:700;color:#fff;}
+.en-nota{display:block;font-size:12px;color:rgba(255,255,255,.55);}
+.en-pasos .en-marcador{margin:4px 2px 2px;}
 #entrada a{color:#fff;}
 #en-zona{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;min-height:150px;
   border:2px dashed rgba(255,255,255,.35);cursor:pointer;text-align:center;padding:20px;font-size:16px;transition:background .15s,border-color .15s;}
@@ -573,7 +575,7 @@ body { font-family: 'ABCOracle', sans-serif; background: #e8e8e8; color: #000; }
 </div>
 
 
-<!-- ENTRADA MANUAL (versión local): aquí se cargan los HTML descargados a mano -->
+<!-- ENTRADA MANUAL (versión local): aquí se cargan los archivos descargados de cinesbabel.com -->
 <div id="entrada">
   <div class="en-caja">
     <div class="en-cab">
@@ -581,25 +583,28 @@ body { font-family: 'ABCOracle', sans-serif; background: #e8e8e8; color: #000; }
       <div class="en-sub">Horarios Taquilla · versión local</div>
     </div>
     <ol class="en-pasos">
+      <li><b>Solo la primera vez:</b> arrastra este botón a la barra de marcadores del navegador:
+        <a id="en-marcador" class="en-marcador" href="#">Descargar programación</a>
+        <span class="en-nota">Si no ves la barra: ⌘⇧B (Mac) o Ctrl+Mayús+B (Windows).</span></li>
       <li>Abre <a href="https://cinesbabel.com/cartelera/" target="_blank" rel="noopener">cinesbabel.com/cartelera</a> y espera a que termine la comprobación del navegador.</li>
-      <li>Guárdala con <b>⌘S</b> (Mac) o <b>Ctrl+S</b> (Windows) eligiendo <b>«Página web, solo HTML»</b>.</li>
-      <li>Haz lo mismo con la ficha de cada película. Al cargar la cartelera, abajo aparecen los enlaces de las fichas que faltan.</li>
-      <li>Arrastra todos los archivos a este recuadro. Puedes añadir más en cualquier momento.</li>
+      <li><b>En esa misma pestaña</b>, pulsa el marcador <b>Descargar programación</b>. Descarga un archivo <b>babel-programacion-AAAA-MM-DD.json</b> con la cartelera y las fichas de todas las películas.</li>
+      <li>Arrastra ese archivo a este recuadro.</li>
     </ol>
     <label id="en-zona" for="en-input">
-      Arrastra aquí los archivos .html o .json
-      <span>o haz clic para elegirlos</span>
+      Arrastra aquí el archivo .json
+      <span>o haz clic para elegirlo</span>
     </label>
     <input id="en-input" type="file" multiple accept=".html,.htm,.json,.txt,text/html,application/json" hidden>
     <details class="en-mas">
-      <summary>Pegar el código fuente</summary>
-      <textarea id="en-texto" placeholder="En la página de cinesbabel.com: ⌘⌥U (Mac) o Ctrl+U (Windows), seleccionar todo, copiar y pegar aquí."></textarea>
-      <button class="en-btn2" onclick="pegarCodigo()">Añadir</button>
+      <summary>Alternativa: guardar las páginas a mano</summary>
+      <p>Guardar con ⌘S (Mac) o Ctrl+S (Windows) solo guarda la página que tienes abierta. Hay que guardar la <b>cartelera</b> y, por separado, la <b>ficha de cada película</b>, siempre como «<b>Página web, solo HTML</b>».</p>
+      <p>Arrastra los archivos al recuadro de arriba, en una o varias tandas. Al cargar la cartelera, abajo aparece la lista de fichas que faltan con su enlace.</p>
     </details>
     <details class="en-mas">
-      <summary>Atajo: cartelera y fichas de un clic</summary>
-      <p>Arrastra este botón a la barra de marcadores del navegador: <a id="en-marcador" class="en-marcador" href="#">Programación Babel</a></p>
-      <p>Después, con cinesbabel.com abierto (y ya pasada la comprobación), pulsa el marcador. Descarga un archivo <b>babel-programacion-AAAA-MM-DD.json</b> con la cartelera y todas las fichas. Arrastra ese archivo aquí.</p>
+      <summary>Alternativa: pegar el código fuente</summary>
+      <p>Igual que guardar, una página cada vez: primero la cartelera y luego cada ficha. En la página, ⌘⌥U (Mac) o Ctrl+U (Windows), selecciona todo, copia y pega aquí.</p>
+      <textarea id="en-texto" placeholder="Pega aquí el código fuente de una página de cinesbabel.com"></textarea>
+      <button class="en-btn2" onclick="pegarCodigo()">Añadir</button>
     </details>
     <div id="en-estado"></div>
     <div class="en-acc"><button id="en-continuar" class="en-btn" disabled onclick="entrarHerramienta()">Continuar</button></div>
@@ -1105,7 +1110,7 @@ async function entrarHerramienta() {
 // Se aceptan, en cualquier orden y en varias tandas:
 //   · la cartelera (cinesbabel.com/cartelera/) guardada como "Página web, solo HTML"
 //   · la ficha de cada película, guardada igual
-//   · el paquete .json que genera el marcador "Programación Babel"
+//   · el paquete .json que genera el marcador "Descargar programación" (método principal)
 //   · el código fuente pegado en el cuadro de texto
 // Cada vez que se añade algo se vuelve a procesar todo desde cero.
 
@@ -1296,7 +1301,7 @@ function pintarEntrada() {
     const pendientes = todas.filter(p => !p.fichaOk);
     h += '<div class="en-res">' + todas.length + ' películas · fichas ' + (conFicha.length - pendientes.length) + ' de ' + conFicha.length + '</div>';
     if (pendientes.length) {
-      h += '<div class="en-msg av">Sin su ficha, de esas películas solo se tienen los días que publica la cartelera (unos 7) y pueden faltar sesiones al final del periodo. Ábrelas, guárdalas y arrástralas aquí.</div>';
+      h += '<div class="en-msg av">Sin su ficha, de esas películas solo se tienen los días que publica la cartelera (unos 7) y pueden faltar sesiones al final del periodo. Vuelve a pulsar «Descargar programación» en cinesbabel.com o, si no, abre esas fichas, guárdalas y arrástralas aquí.</div>';
     }
     h += '<ul class="en-lista">' + [...todas]
       .sort((a, b) => (a.fichaOk - b.fichaOk) || a.titulo.localeCompare(b.titulo, 'es'))
@@ -1362,7 +1367,7 @@ async function arrancar() {
   abrirEntrada();
 }
 
-// ── Marcador "Programación Babel" ──
+// ── Marcador "Descargar programación" ──
 // Este código NO se ejecuta aquí: se convierte en un marcador del navegador
 // y se ejecuta dentro de cinesbabel.com, donde el navegador ya ha pasado la
 // comprobación. Descarga la cartelera y todas las fichas (4 a la vez) y
@@ -1389,7 +1394,7 @@ function marcadorBabel() {
   };
   (async () => {
     try {
-      msg('Programación Babel: descargando cartelera…');
+      msg('Descargar programación: descargando cartelera…');
       const urlCartelera = location.origin + '/cartelera/';
       const html = await bajar(urlCartelera);
       const doc = new DOMParser().parseFromString(html, 'text/html');
@@ -1406,14 +1411,14 @@ function marcadorBabel() {
       const fichas = [];
       const cola = urls.slice();
       let hechas = 0;
-      msg('Programación Babel: fichas 0 / ' + urls.length + '…');
+      msg('Descargar programación: fichas 0 / ' + urls.length + '…');
       await Promise.all([0, 1, 2, 3].map(async () => {
         while (cola.length) {
           const u = cola.shift();
           try { fichas.push({url: u, html: await bajar(u)}); }
           catch(e) { fichas.push({url: u, error: String(e.message || e)}); }
           hechas++;
-          msg('Programación Babel: fichas ' + hechas + ' / ' + urls.length + '…');
+          msg('Descargar programación: fichas ' + hechas + ' / ' + urls.length + '…');
         }
       }));
       const paquete = {tipo: 'babel-programacion', version: 1, fecha: new Date().toISOString(),
