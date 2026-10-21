@@ -1,0 +1,2036 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="../icon.png">
+<link rel="apple-touch-icon" href="../icon.png">
+<meta name="apple-mobile-web-app-title" content="Horarios Babel">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Horarios Taquilla (local) — Cines Babel</title>
+<style>
+@font-face {
+  font-family:'ABCSolar';
+  src:url('../fonts/ABCSolarDisplay-Extrabold.otf') format('opentype');
+  font-weight:800;
+  font-style:normal;
+  font-display:block;
+}
+@font-face {
+  font-family:'ABCOracle';
+  src:url('../fonts/ABCOracleTriple-Light.otf') format('opentype');
+  font-weight:300;
+  font-style:normal;
+  font-display:block;
+}
+
+/* ── Reset ── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'ABCOracle', sans-serif; background: #e8e8e8; color: #000; }
+
+/* ── Pantalla de carga ── */
+#carga {
+  position: fixed; inset: 0; background: #000;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 20px; z-index: 1000;
+}
+#carga-msg { color: #fff; font-size: 15px; letter-spacing: .05em; }
+#carga-err { color: #e74c3c; font-size: 13px; display: none; white-space: pre-wrap; text-align: center; }
+#btn-retry {
+  display: none; padding: 10px 24px; background: #fff; color: #000;
+  border: none; cursor: pointer; font-family: 'ABCOracle', sans-serif; font-size: 14px;
+}
+.spinner {
+  width: 36px; height: 36px; border: 3px solid rgba(255,255,255,.2);
+  border-top-color: #fff; border-radius: 50%; animation: spin .8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Barra de control ── */
+#barra-ctrl {
+  background: #000; color: #fff;
+  padding: 14px 24px; display: none; align-items: center; gap: 16px; flex-wrap: wrap;
+}
+#barra-ctrl h1 { font-family: 'ABCSolar', sans-serif; font-size: 17px; letter-spacing: .02em; flex-shrink: 0; }
+#barra-ctrl .app-icon {
+  width: 36px; height: 36px; border-radius: 8px;
+  object-fit: cover; flex-shrink: 0;
+}
+.ctrl-sep { flex: 1; }
+#version-label {
+  font-family: 'ABCOracle', sans-serif;
+  font-size: 11px;
+  color: rgba(255,255,255,.5);
+  white-space: nowrap;
+  margin-left: 16px;
+  letter-spacing: .03em;
+}
+#sb-status {
+  display: flex; align-items: center; gap: 5px;
+  font-family: 'ABCOracle', sans-serif; font-size: 11px;
+  color: rgba(255,255,255,.6); white-space: nowrap; cursor: pointer;
+  padding: 4px 8px; border: 1px solid rgba(255,255,255,.15);
+  background: none; letter-spacing: .03em;
+}
+#sb-status:hover { background: rgba(255,255,255,.1); }
+#sb-dot { font-size: 9px; }
+
+/* Modal Supabase */
+#sb-modal-overlay {
+  display: none; position: fixed; inset: 0;
+  background: rgba(0,0,0,.55); z-index: 500;
+  align-items: center; justify-content: center;
+}
+#sb-modal-overlay.visible { display: flex; }
+#sb-modal {
+  background: #fff; color: #000; padding: 28px 28px 24px;
+  width: min(420px, 92vw); font-family: 'ABCOracle', sans-serif;
+}
+#sb-modal h3 {
+  font-family: 'ABCSolar', sans-serif; font-size: 17px; margin-bottom: 6px;
+}
+#sb-modal p { font-size: 12px; color: #666; margin-bottom: 20px; line-height: 1.5; }
+.sb-field { margin-bottom: 14px; }
+.sb-field label { display: block; font-size: 11px; color: #888; margin-bottom: 4px; letter-spacing: .04em; text-transform: uppercase; }
+.sb-field input {
+  width: 100%; box-sizing: border-box;
+  border: 1px solid #ccc; padding: 9px 10px;
+  font-family: 'ABCOracle', sans-serif; font-size: 13px;
+}
+.sb-field input:focus { outline: none; border-color: #000; }
+.sb-actions { display: flex; gap: 10px; margin-top: 20px; }
+.sb-actions button {
+  flex: 1; padding: 10px; font-family: 'ABCOracle', sans-serif;
+  font-size: 13px; border: 1px solid #000; cursor: pointer; background: none;
+}
+.sb-actions button.primario { background: #000; color: #fff; }
+#sb-feedback { font-size: 12px; margin-top: 12px; min-height: 18px; text-align: center; }
+.cal-wrapper { position: relative; }
+#cal-btn {
+  background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.25);
+  color: #fff; padding: 8px 14px; cursor: pointer;
+  font-family: 'ABCOracle', sans-serif; font-size: 13px;
+  display: flex; align-items: center; gap: 8px;
+}
+#cal-btn:hover { background: rgba(255,255,255,.2); }
+#cal-dropdown {
+  display: none; position: absolute; top: calc(100% + 4px); left: 0;
+  background: #fff; color: #000;
+  box-shadow: 0 8px 32px rgba(0,0,0,.3); z-index: 200; min-width: 280px; padding: 16px;
+}
+#cal-dropdown.open { display: block; }
+@media (max-width: 480px) {
+  #cal-dropdown {
+    position: fixed; top: auto; left: 0; right: 0; bottom: 0;
+    min-width: unset; width: 100%;
+    box-shadow: 0 -4px 24px rgba(0,0,0,.25);
+    padding: 20px 16px 32px;
+    border-radius: 0;
+  }
+}
+.cal-nav { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.cal-nav button { background: none; border: none; cursor: pointer; font-size: 18px; padding: 4px 8px; }
+.cal-nav-label { font-family: 'ABCSolar', sans-serif; font-size: 14px; }
+.cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+.cal-dh { font-size: 10px; text-align: center; padding: 4px 0; color: #888; font-weight: bold; }
+.cal-day { font-size: 12px; text-align: center; padding: 6px 2px; cursor: pointer; border-radius: 2px; }
+.cal-day:hover { background: #eee; }
+.cal-day.fuera { color: #ccc; cursor: default; }
+.cal-day.con-pelis { font-weight: bold; }
+.cal-day.seleccionado { background: #000; color: #fff; }
+.cal-day.en-rango { background: rgba(0,0,0,.1); }
+.cal-btns { display: flex; gap: 8px; margin-top: 12px; }
+.cal-btns button {
+  flex: 1; padding: 8px; font-family: 'ABCOracle', sans-serif; font-size: 12px;
+  border: 1px solid #000; cursor: pointer; background: none;
+}
+.cal-btns button.primario { background: #000; color: #fff; }
+
+/* ── Panel selección ── */
+#panel-sel { display: none; padding: 24px; max-width: 900px; margin: 0 auto; }
+#panel-sel h2 { font-family: 'ABCSolar', sans-serif; font-size: 20px; margin-bottom: 6px; }
+.panel-desc { font-size: 13px; color: #666; margin-bottom: 18px; }
+.sel-actions { display: flex; gap: 10px; margin-bottom: 18px; flex-wrap: wrap; }
+.sel-actions button {
+  padding: 8px 16px; font-family: 'ABCOracle', sans-serif; font-size: 13px;
+  border: 1px solid #000; cursor: pointer; background: none;
+}
+.sel-actions button.primario { background: #000; color: #fff; }
+
+#gminis {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px;
+  margin-bottom: 20px;
+}
+.mini-card {
+  cursor: pointer; border: 2px solid transparent; background: #fff; position: relative; overflow: hidden;
+}
+.mini-card:hover { border-color: #ccc; }
+.mini-card.sel { border-color: #000; }
+.mini-card img { width: 100%; display: block; aspect-ratio: 2/3; object-fit: cover; }
+.mini-card .mini-no-img {
+  aspect-ratio: 2/3; background: #333; display: flex; align-items: center;
+  justify-content: center; color: #fff; font-size: 10px; padding: 8px; text-align: center;
+  font-family: 'ABCSolar', sans-serif; line-height: 1.3;
+}
+.mini-card .mini-titulo { font-size: 10px; padding: 5px 7px; line-height: 1.3; font-family: 'ABCSolar', sans-serif; }
+.mini-rating {
+  display: flex; align-items: center; gap: 4px;
+  padding: 4px 7px 6px; border-top: 1px solid #eee;
+  font-size: 9px; font-family: 'ABCOracle', sans-serif; color: #555;
+}
+.mini-rating label { white-space: nowrap; }
+.mini-rating input[type=number] {
+  width: 36px; font-size: 10px; padding: 2px 3px;
+  border: 1px solid #ccc; font-family: 'ABCOracle', sans-serif;
+  text-align: center; -moz-appearance: textfield;
+}
+.mini-rating input[type=number]::-webkit-inner-spin-button,
+.mini-rating input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; }
+.mini-check {
+  position: absolute; top: 5px; right: 5px; width: 18px; height: 18px;
+  background: #000; color: #fff; font-size: 10px; display: none;
+  align-items: center; justify-content: center;
+}
+.mini-card.sel .mini-check { display: flex; }
+
+/* Aviso duplicados */
+#info-dup {
+  background: #fff8e1; border-left: 4px solid #f39c12;
+  padding: 12px 16px; margin-bottom: 18px; display: none; font-size: 13px; line-height: 1.6;
+}
+#info-dup h3 { font-family: 'ABCSolar', sans-serif; font-size: 14px; margin-bottom: 6px; }
+
+#btn-generar {
+  display: block; width: 100%; max-width: 360px; margin: 0 auto;
+  padding: 14px 32px; background: #000; color: #fff;
+  border: none; font-family: 'ABCSolar', sans-serif; font-size: 15px;
+  letter-spacing: .04em; cursor: pointer;
+}
+#btn-generar:hover { background: #222; }
+#btn-generar:disabled { background: #ccc; color: #999; cursor: not-allowed; }
+
+/* ── Preview ── */
+@media screen {
+  #carteles-preview { display: none; padding: 24px; max-width: 700px; margin: 0 auto; }
+  #carteles-preview.visible { display: block; }
+  .preview-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; flex-wrap: wrap; gap: 10px; }
+  .preview-header h2 { font-family: 'ABCSolar', sans-serif; font-size: 18px; }
+  .preview-actions { display: flex; gap: 10px; }
+  .preview-actions button {
+    padding: 10px 20px; font-family: 'ABCOracle', sans-serif; font-size: 13px;
+    border: 1px solid #000; cursor: pointer; background: none;
+  }
+  .preview-actions button.primario { background: #000; color: #fff; }
+
+  .preview-grupo { margin-bottom: 24px; }
+  .preview-grupo-label {
+    font-family: 'ABCSolar', sans-serif; font-size: 12px; color: #666;
+    margin-bottom: 10px; text-transform: uppercase; letter-spacing: .08em;
+  }
+  .preview-cards-row { display: flex; gap: 12px; flex-wrap: wrap; }
+
+  /* Miniatura de cartel en preview — versión reducida del cartel real */
+  .preview-thumb {
+    width: 160px; background: #fff; border: 1px solid #ddd; padding: 10px;
+    cursor: pointer; position: relative; text-align: center;
+  }
+  .preview-thumb:hover { border-color: #000; }
+  .preview-thumb .pt-subtitulo {
+    font-family: 'ABCSolar', sans-serif; font-size: 8px; margin-bottom: 2px;
+  }
+  .preview-thumb .pt-titulo {
+    font-family: 'ABCSolar', sans-serif; font-size: 13px; font-weight: bold;
+    line-height: 1.15; margin-bottom: 6px;
+  }
+  .preview-thumb .pt-rating {
+    font-family: 'ABCOracle', sans-serif; font-size: 7px; color: #555; margin-bottom: 8px;
+  }
+  .preview-thumb .pt-horas-sep {
+    border: none; border-top: 1px solid #eee; margin: 6px 0;
+  }
+  .preview-thumb .pt-dia {
+    font-family: 'ABCSolar', sans-serif; font-size: 14px; color: #000;
+    margin-bottom: 4px; font-weight: bold; line-height: 1.3;
+  }
+  .preview-thumb .pt-horas { font-family: 'ABCOracle', sans-serif; font-size: 11px; line-height: 1.6; }
+
+  /* Switch: incluir el resumen semanal en la impresión.
+     Arranca apagado en cada carga — imprimirlo es una decisión consciente. */
+  #sw-resumen {
+    display: flex; align-items: center; gap: 9px;
+    padding: 9px 16px; border: 1px solid #ddd; background: none;
+    font-family: 'ABCOracle', sans-serif; font-size: 13px;
+    color: #777; cursor: pointer; user-select: none;
+  }
+  #sw-resumen input { position: absolute; opacity: 0; width: 0; height: 0; }
+  .sw-track {
+    position: relative; width: 34px; height: 18px; flex-shrink: 0;
+    background: #c4c4c4; border-radius: 9px; transition: background .18s;
+  }
+  .sw-knob {
+    position: absolute; top: 2px; left: 2px; width: 14px; height: 14px;
+    background: #fff; border-radius: 50%; transition: transform .18s;
+  }
+  #sw-resumen input:checked ~ .sw-track { background: #27ae60; }
+  #sw-resumen input:checked ~ .sw-track .sw-knob { transform: translateX(16px); }
+  #sw-resumen.on { color: #000; border-color: #27ae60; }
+  #sw-resumen input:focus-visible ~ .sw-track { box-shadow: 0 0 0 2px rgba(0,0,0,.4); }
+}
+
+/* ════════════════════════════════════════════
+   RESUMEN SEMANAL
+   A4 vertical, la misma orientación que los carteles, para que
+   entre en el mismo trabajo de impresión sin trucos de @page.
+   Codificado en blanco y negro: la impresora de taquilla no
+   tiene por qué imprimir en color.
+   ════════════════════════════════════════════ */
+.resumen-hoja {
+  width: 21cm; padding: 1.7cm 1.4cm;
+  box-sizing: border-box; background: #fff; color: #000;
+}
+.resumen-hoja h2 {
+  font-family: 'ABCSolar', sans-serif; font-size: 16pt; margin-bottom: 0.7cm;
+}
+.resumen-tabla {
+  width: 100%; border-collapse: collapse; table-layout: fixed;
+  font-family: 'ABCOracle', sans-serif; font-size: 9pt;
+}
+.resumen-tabla th, .resumen-tabla td {
+  border: 0.5pt solid #b0b0b0; padding: 5pt 2pt; text-align: center;
+}
+.resumen-tabla td { white-space: nowrap; }
+.resumen-tabla thead th {
+  border: none; font-weight: normal; font-size: 8.5pt; padding-bottom: 5pt;
+}
+.resumen-tabla th.r-peli {
+  width: 5.4cm; text-align: left; padding-left: 0;
+  border-left: none; border-top: none; border-bottom: none;
+  font-family: 'ABCOracle', sans-serif; font-size: 8.5pt; font-weight: normal;
+}
+.r-vacia { background: #f5f5f5; }
+.r-sigue { color: #9a9a9a; }
+.r-mueve { background: #e2e2e2; }
+.r-fin   { color: #000; }
+.r-nueva { background: #000; color: #fff; }
+.resumen-leyenda {
+  margin-top: 0.7cm; font-family: 'ABCOracle', sans-serif;
+  font-size: 8.5pt; line-height: 2.1;
+}
+.r-muestra {
+  display: inline-block; width: 1.7cm; text-align: center;
+  border: 0.5pt solid #b0b0b0; padding: 2pt 0; margin-right: 8pt; font-size: 8pt;
+}
+.resumen-sello { margin-top: 0.5cm; font-size: 7.5pt; color: #777; }
+
+@media screen {
+  #resumen-print { display: none; }
+  #resumen-preview { display: none; margin-bottom: 26px; }
+  body.con-resumen #resumen-preview { display: block; }
+  #resumen-preview .resumen-hoja { width: 100%; padding: 18px; border: 1px solid #ddd; }
+  #resumen-preview .resumen-hoja h2 { font-size: 14px; margin-bottom: 14px; }
+  #resumen-preview .resumen-tabla { font-size: 11px; }
+  #resumen-preview .resumen-tabla th,
+  #resumen-preview .resumen-tabla td { padding: 6px 2px; }
+  #resumen-preview .resumen-tabla th.r-peli { width: 32%; font-size: 10px; }
+  #resumen-preview .resumen-leyenda { margin-top: 14px; font-size: 11px; line-height: 1.9; }
+  #resumen-preview .r-muestra { width: 58px; font-size: 10px; }
+  #resumen-preview .resumen-sello { margin-top: 10px; font-size: 10px; }
+}
+
+/* ════════════════════════════════════════════
+   CARTELES IMPRIMIBLES — REPLICA EXACTA DEL ODT
+   Página A4 (21cm × 29.7cm), todo centrado
+   ════════════════════════════════════════════ */
+@media print {
+  * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  @page {
+    size: A4;
+    margin: 0mm;
+  }
+  body, html { margin: 0; padding: 0; background: #fff; }
+  #carga, #barra-ctrl, #panel-sel, #carteles-preview,
+  #modal-overlay { display: none !important; }
+  #carteles { display: block !important; }
+  .cartel-pagina {
+    page-break-before: always; break-before: page;
+    page-break-after: always;  break-after: page;
+    page-break-inside: avoid;  break-inside: avoid;
+    display: flex; justify-content: center; align-items: flex-start;
+    padding-top: 0.8cm;
+    box-sizing: border-box;
+    overflow: hidden;
+    position: relative;
+  }
+  /* Franjas blancas que tapan el header/footer que iOS Safari pinta */
+  .cartel-pagina::before,
+  .cartel-pagina::after {
+    content: '';
+    display: block;
+    position: absolute;
+    left: -5cm; right: -5cm;
+    height: 2cm;
+    background: #ffffff !important;
+    z-index: 9999;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .cartel-pagina::before { top: -2cm; }
+  .cartel-pagina::after  { bottom: -2cm; }
+  .cartel-pagina:first-child { page-break-before: auto; break-before: auto; }
+
+  /* El resumen sale como página 1, delante de todos los carteles */
+  #resumen-print { display: none; }
+  body.con-resumen #resumen-print {
+    display: block;
+    page-break-after: always; break-after: page;
+    position: relative; overflow: hidden;
+  }
+  /* Mismas franjas blancas que en los carteles, para tapar el
+     header/footer que iOS Safari pinta al imprimir */
+  body.con-resumen #resumen-print::before,
+  body.con-resumen #resumen-print::after {
+    content: ''; display: block; position: absolute;
+    left: -5cm; right: -5cm; height: 2cm;
+    background: #ffffff !important; z-index: 9999;
+    -webkit-print-color-adjust: exact; print-color-adjust: exact;
+  }
+  body.con-resumen #resumen-print::before { top: -2cm; }
+  body.con-resumen #resumen-print::after  { bottom: -2cm; }
+  /* Al imprimir una hoja suelta desde el modal, el resumen no entra */
+  body.imprimiendo-individual #resumen-print { display: none !important; }
+}
+@media screen {
+  #carteles { display: none; }
+}
+
+/* El cartel en sí */
+.cartel {
+  width: 21cm;
+  background: #fff;
+  text-align: center;
+  padding: 0.8cm 1.5cm 1.5cm;
+  display: flex; flex-direction: column; align-items: center;
+  page-break-inside: avoid; break-inside: avoid;
+}
+
+/* P1: subtítulo — ABCSolar 40pt */
+.c-subtitulo {
+  font-family: 'ABCSolar', sans-serif;
+  font-size: 40pt;
+  line-height: 1.1;
+  margin-bottom: 0.1cm;
+}
+
+/* P2: título — ABCSolar 70pt */
+.c-titulo {
+  font-family: 'ABCSolar', sans-serif;
+  font-size: 70pt;
+  line-height: 1.0;
+  margin-bottom: 0.2cm;
+}
+
+/* título largo — ABCSolar 50pt */
+.c-titulo-largo {
+  font-size: 50pt;
+}
+
+/* P3: rating — ABCOracle 24pt */
+.c-rating {
+  font-family: 'ABCOracle', sans-serif;
+  font-size: 24pt;
+  line-height: 1.3;
+  margin-bottom: 0.6cm;
+}
+
+/* P4: horas — ABCOracle 70pt, una por línea */
+.c-hora {
+  font-family: 'ABCOracle', sans-serif;
+  font-size: 70pt;
+  line-height: 1.15;
+}
+
+
+/* Modal cartel a tamaño completo */
+@media screen {
+  #modal-overlay {
+    display: none; position: fixed; inset: 0; background: rgba(0,0,0,.75);
+    z-index: 500; flex-direction: column; align-items: center; justify-content: flex-start;
+    overflow-y: auto; padding: 20px 0 40px;
+  }
+  #modal-overlay.visible { display: flex; }
+  #modal-barra {
+    display: flex; gap: 10px; margin-bottom: 16px; flex-shrink: 0;
+  }
+  #modal-barra button {
+    padding: 10px 20px; font-family: 'ABCOracle', sans-serif; font-size: 13px;
+    border: 1px solid #fff; background: none; color: #fff; cursor: pointer;
+  }
+  #modal-barra button.primario { background: #fff; color: #000; }
+  #modal-barra button:hover { opacity: .8; }
+  #modal-inner {
+    background: #fff; position: relative;
+    transform: scale(0.42); transform-origin: top center;
+    flex-shrink: 0;
+    /* Compensar espacio del scale para que no quede hueco abajo */
+    margin-bottom: calc((21cm * 0.42 - 21cm));
+  }
+  #modal-close {
+    display: none; /* reemplazado por botón en barra */
+  }
+}
+/* Para imprimir hoja individual desde el modal */
+@media print {
+  @page { size: A4; margin: 0mm; }
+  body.imprimiendo-individual #carteles,
+  body.imprimiendo-individual #modal-overlay { display: none !important; }
+  body.imprimiendo-individual #cartel-individual { display: flex !important; }
+  #cartel-individual::before,
+  #cartel-individual::after {
+    content: '';
+    display: block;
+    position: absolute;
+    left: -5cm; right: -5cm;
+    height: 2cm;
+    background: #ffffff !important;
+    z-index: 9999;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  #cartel-individual::before { top: -2cm; }
+  #cartel-individual::after  { bottom: -2cm; }
+}
+#cartel-individual {
+  display: none;
+  justify-content: center;
+  align-items: flex-start;
+  padding-top: 0.8cm;
+  box-sizing: border-box;
+  overflow: hidden;
+  position: relative;
+}
+
+/* ─── ENTRADA MANUAL (versión local, sin Worker) ─── */
+#entrada{position:fixed;inset:0;background:#111;color:#fff;z-index:9998;overflow-y:auto;
+  font-family:'ABCOracle','Helvetica Neue',sans-serif;display:none;}
+#entrada.arrastrando #en-zona{border-color:#fff;background:rgba(255,255,255,.08);}
+.en-caja{max-width:640px;margin:0 auto;padding:48px 20px 64px;display:flex;flex-direction:column;gap:22px;}
+.en-cab{text-align:center;}
+.en-babel{font-family:'ABCSolar',sans-serif;font-size:64px;letter-spacing:-2px;line-height:1;}
+.en-sub{margin-top:10px;font-size:10px;letter-spacing:3px;text-transform:uppercase;color:rgba(255,255,255,.55);}
+.en-pasos{margin:0;padding-left:20px;font-size:14px;line-height:1.6;color:rgba(255,255,255,.85);}
+.en-pasos li{margin-bottom:4px;}
+.en-pasos b{font-weight:700;color:#fff;}
+#entrada a{color:#fff;}
+#en-zona{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;min-height:150px;
+  border:2px dashed rgba(255,255,255,.35);cursor:pointer;text-align:center;padding:20px;font-size:16px;transition:background .15s,border-color .15s;}
+#en-zona:hover{border-color:rgba(255,255,255,.7);}
+#en-zona span{font-size:12px;color:rgba(255,255,255,.55);}
+.en-mas{border-top:1px solid rgba(255,255,255,.15);padding-top:12px;font-size:13px;line-height:1.6;color:rgba(255,255,255,.8);}
+.en-mas summary{cursor:pointer;font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:#fff;}
+.en-mas p{margin-top:10px;}
+.en-mas textarea{display:block;width:100%;height:110px;margin-top:10px;padding:8px;background:#000;color:#ddd;
+  border:1px solid rgba(255,255,255,.3);font:11px/1.4 ui-monospace,Menlo,monospace;resize:vertical;}
+.en-marcador{display:inline-block;margin:0 2px;padding:3px 10px;background:#fff;color:#111!important;text-decoration:none;
+  font-size:12px;font-weight:700;border-radius:3px;cursor:grab;}
+.en-btn,.en-btn2{font-family:'ABCOracle',sans-serif;font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;
+  background:#fff;color:#111;border:none;padding:12px 28px;cursor:pointer;}
+.en-btn2{margin-top:8px;padding:8px 16px;font-size:10px;}
+.en-btn:disabled{background:#555;color:#999;cursor:not-allowed;}
+.en-acc{display:flex;justify-content:center;}
+#en-estado{font-size:13px;line-height:1.55;}
+#en-estado:empty{display:none;}
+.en-msg{padding:8px 12px;margin-bottom:8px;border-left:3px solid #6fcf97;background:rgba(111,207,151,.1);}
+.en-msg.err{border-left-color:#ff8080;background:rgba(255,128,128,.1);}
+.en-msg.av{border-left-color:#ffd166;background:rgba(255,209,102,.1);}
+.en-res{margin:14px 0 6px;font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:rgba(255,255,255,.6);}
+.en-lista{list-style:none;margin:0;padding:0;border-top:1px solid rgba(255,255,255,.12);}
+.en-lista li{display:flex;gap:10px;align-items:baseline;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.12);}
+.en-lista .ok{color:#6fcf97;width:14px;flex-shrink:0;}
+.en-lista .no{color:#ffd166;width:14px;flex-shrink:0;}
+.en-lista .tit{flex:1;}
+.en-lista a{font-size:12px;white-space:nowrap;}
+
+@media print{#entrada{display:none!important;}}
+
+#btn-archivos {
+  display: flex; align-items: center; gap: 5px;
+  font-family: 'ABCOracle', sans-serif; font-size: 11px;
+  color: rgba(255,255,255,.6); white-space: nowrap; cursor: pointer;
+  padding: 4px 8px; border: 1px solid rgba(255,255,255,.15);
+  background: none; letter-spacing: .03em;
+}
+#btn-archivos:hover { color: #fff; border-color: rgba(255,255,255,.4); }
+</style>
+</head>
+<body>
+
+<!-- Pantalla de carga -->
+<div id="carga" style="display:none">
+  <div class="spinner"></div>
+  <div id="carga-msg">Conectando con cinesbabel.com…</div>
+  <div id="carga-err"></div>
+  <button id="btn-retry" onclick="arrancar()">Reintentar</button>
+</div>
+
+
+<!-- ENTRADA MANUAL (versión local): aquí se cargan los HTML descargados a mano -->
+<div id="entrada">
+  <div class="en-caja">
+    <div class="en-cab">
+      <div class="en-babel">Babel</div>
+      <div class="en-sub">Horarios Taquilla · versión local</div>
+    </div>
+    <ol class="en-pasos">
+      <li>Abre <a href="https://cinesbabel.com/cartelera/" target="_blank" rel="noopener">cinesbabel.com/cartelera</a> y espera a que termine la comprobación del navegador.</li>
+      <li>Guárdala con <b>⌘S</b> (Mac) o <b>Ctrl+S</b> (Windows) eligiendo <b>«Página web, solo HTML»</b>.</li>
+      <li>Haz lo mismo con la ficha de cada película. Al cargar la cartelera, abajo aparecen los enlaces de las fichas que faltan.</li>
+      <li>Arrastra todos los archivos a este recuadro. Puedes añadir más en cualquier momento.</li>
+    </ol>
+    <label id="en-zona" for="en-input">
+      Arrastra aquí los archivos .html o .json
+      <span>o haz clic para elegirlos</span>
+    </label>
+    <input id="en-input" type="file" multiple accept=".html,.htm,.json,.txt,text/html,application/json" hidden>
+    <details class="en-mas">
+      <summary>Pegar el código fuente</summary>
+      <textarea id="en-texto" placeholder="En la página de cinesbabel.com: ⌘⌥U (Mac) o Ctrl+U (Windows), seleccionar todo, copiar y pegar aquí."></textarea>
+      <button class="en-btn2" onclick="pegarCodigo()">Añadir</button>
+    </details>
+    <details class="en-mas">
+      <summary>Atajo: cartelera y fichas de un clic</summary>
+      <p>Arrastra este botón a la barra de marcadores del navegador: <a id="en-marcador" class="en-marcador" href="#">Programación Babel</a></p>
+      <p>Después, con cinesbabel.com abierto (y ya pasada la comprobación), pulsa el marcador. Descarga un archivo <b>babel-programacion-AAAA-MM-DD.json</b> con la cartelera y todas las fichas. Arrastra ese archivo aquí.</p>
+    </details>
+    <div id="en-estado"></div>
+    <div class="en-acc"><button id="en-continuar" class="en-btn" disabled onclick="entrarHerramienta()">Continuar</button></div>
+  </div>
+</div>
+
+<!-- Barra de control -->
+<div id="barra-ctrl">
+  <img src="../icon.png" alt="" class="app-icon">
+  <h1>Horarios Taquilla</h1>
+  <div class="ctrl-sep"></div>
+  <div class="cal-wrapper">
+    <button id="cal-btn" onclick="toggleCal()">
+      📅 <span id="cal-label">Seleccionar fechas</span>
+    </button>
+    <div id="cal-dropdown">
+      <div class="cal-nav">
+        <button onclick="navCal(-1)">‹</button>
+        <div class="cal-nav-label" id="cal-nav-label"></div>
+        <button onclick="navCal(1)">›</button>
+      </div>
+      <div class="cal-grid" id="cal-grid"></div>
+      <div class="cal-btns">
+        <button onclick="semanaActual()">Esta semana</button>
+        <button onclick="closeCal(); refGrid()" class="primario">Aplicar</button>
+      </div>
+    </div>
+  </div>
+  <button id="btn-archivos" onclick="abrirEntrada()" title="Añadir o cambiar los archivos de cinesbabel.com">📂 Archivos</button>
+  <button id="sb-status" onclick="abrirSbModal()">
+    <span id="sb-dot">⚫</span><span id="sb-label">Base de datos</span>
+  </button>
+  <div id="version-label">v1.11 · local · Desarrollado por Pablo Goitia</div>
+</div>
+
+<!-- Modal configuración Supabase -->
+<div id="sb-modal-overlay">
+  <div id="sb-modal">
+    <h3>Conexión Supabase</h3>
+    <p>Los ratings se sincronizarán entre todos los dispositivos. Las credenciales se guardan solo en este navegador.</p>
+    <div class="sb-field">
+      <label>URL del proyecto</label>
+      <input id="sb-url-input" type="url" placeholder="https://xxxx.supabase.co">
+    </div>
+    <div class="sb-field">
+      <label>Anon key</label>
+      <input id="sb-key-input" type="password" placeholder="eyJ…">
+    </div>
+    <div class="sb-actions">
+      <button onclick="cerrarSbModal()">Cancelar</button>
+      <button class="primario" onclick="guardarSbConfig()">Conectar</button>
+    </div>
+    <div id="sb-feedback"></div>
+  </div>
+</div>
+<div id="panel-sel">
+  <h2>Seleccionar películas</h2>
+  <p class="panel-desc">Elige las películas cuyos carteles quieres generar.</p>
+  <div class="sel-actions">
+    <button onclick="selTodas()" class="primario">Todas</button>
+    <button onclick="deselTodas()">Ninguna</button>
+  </div>
+  <div id="gminis"></div>
+  <button id="btn-generar" onclick="generar()" disabled>Generar carteles</button>
+</div>
+
+<!-- Preview -->
+<div id="carteles-preview">
+  <div class="preview-header">
+    <h2>Vista previa — <span id="n-carteles">0</span> carteles</h2>
+    <div class="preview-actions">
+      <button onclick="document.getElementById('carteles-preview').classList.remove('visible'); document.getElementById('panel-sel').style.display='block'">← Volver</button>
+      <label id="sw-resumen">
+        <input type="checkbox" id="chk-resumen" onchange="toggleResumen(this.checked)">
+        <span class="sw-track"><span class="sw-knob"></span></span>
+        Resumen semanal
+      </label>
+      <button class="primario" onclick="window.print()">🖨 Imprimir / PDF</button>
+    </div>
+  </div>
+  <div id="resumen-preview"></div>
+  <div id="preview-grupos"></div>
+</div>
+
+<!-- Resumen semanal para impresión (página 1) -->
+<div id="resumen-print"></div>
+
+<!-- Modal cartel a tamaño completo -->
+<div id="modal-overlay" onclick="cerrarModal(event)">
+  <div id="modal-barra">
+    <button onclick="document.getElementById('modal-overlay').classList.remove('visible')">← Cerrar</button>
+    <button class="primario" onclick="imprimirIndividual()">🖨 Imprimir esta hoja</button>
+  </div>
+  <div id="modal-inner"></div>
+</div>
+
+<!-- Contenedor solo para impresión individual -->
+<div id="cartel-individual"></div>
+
+<!-- Carteles imprimibles -->
+<div id="carteles"></div>
+
+<script>
+// ════════════════════════════════════════════
+// SCRAPING (idéntico al Cartelera Generator)
+// ════════════════════════════════════════════
+
+let todas = [], fechas = [], sel = [], enRango = [];
+
+// Escapa texto que va a inyectarse como HTML (títulos, URLs de póster, días…).
+// Los títulos vienen de la web del cine: un apóstrofo o un & rompía el markup.
+function esc(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+// ════════════════════════════════════════════
+// SUPABASE — configuración y cliente mínimo
+// ════════════════════════════════════════════
+let sbUrl = '', sbKey = '';
+try {
+  sbUrl = localStorage.getItem('babel_sb_url') || '';
+  sbKey = localStorage.getItem('babel_sb_key') || '';
+} catch(e) {}
+
+function sbConnected() { return !!(sbUrl && sbKey); }
+
+function setSbStatus(estado) {
+  // estado: 'ok' | 'error' | 'off'
+  const dot   = document.getElementById('sb-dot');
+  const label = document.getElementById('sb-label');
+  if (!dot) return;
+  if (estado === 'ok')    { dot.textContent = '🟢'; label.textContent = 'Sincronizado'; }
+  else if (estado === 'error') { dot.textContent = '🔴'; label.textContent = 'Sin conexión'; }
+  else                    { dot.textContent = '⚫'; label.textContent = 'Base de datos'; }
+}
+
+async function sbFetch(path, opts = {}) {
+  const res = await fetch(sbUrl + '/rest/v1/' + path, {
+    ...opts,
+    headers: {
+      'apikey': sbKey,
+      'Authorization': 'Bearer ' + sbKey,
+      'Content-Type': 'application/json',
+      'Prefer': opts.prefer || 'return=minimal',
+      ...(opts.headers || {})
+    }
+  });
+  if (!res.ok) throw new Error('Supabase ' + res.status);
+  return res;
+}
+
+async function cargarRatingsSupabase() {
+  const res = await sbFetch('horarios_ratings?select=titulo,valor');
+  const data = await res.json();
+  data.forEach(row => { ratings[row.titulo] = row.valor; });
+}
+
+async function upsertRating(titulo, valor) {
+  if (!sbConnected()) return;
+  try {
+    await sbFetch('horarios_ratings', {
+      method: 'POST',
+      prefer: 'resolution=merge-duplicates,return=minimal',
+      headers: { 'Prefer': 'resolution=merge-duplicates,return=minimal' },
+      body: JSON.stringify({ titulo, valor })
+    });
+  } catch(e) { console.warn('Supabase upsert:', e.message); }
+}
+
+async function deleteRating(titulo) {
+  if (!sbConnected()) return;
+  try {
+    await sbFetch('horarios_ratings?titulo=eq.' + encodeURIComponent(titulo), { method: 'DELETE' });
+  } catch(e) { console.warn('Supabase delete:', e.message); }
+}
+
+function abrirSbModal() {
+  document.getElementById('sb-url-input').value = sbUrl;
+  document.getElementById('sb-key-input').value = sbKey;
+  document.getElementById('sb-feedback').textContent = '';
+  document.getElementById('sb-modal-overlay').classList.add('visible');
+}
+function cerrarSbModal() {
+  document.getElementById('sb-modal-overlay').classList.remove('visible');
+}
+async function guardarSbConfig() {
+  const url = document.getElementById('sb-url-input').value.trim().replace(/\/$/, '');
+  const key = document.getElementById('sb-key-input').value.trim();
+  const fb  = document.getElementById('sb-feedback');
+  if (!url || !key) { fb.textContent = 'Rellena los dos campos.'; fb.style.color = '#c00'; return; }
+  fb.textContent = 'Conectando…'; fb.style.color = '#888';
+  try {
+    const res = await fetch(url + '/rest/v1/horarios_ratings?select=titulo&limit=1', {
+      headers: { 'apikey': key, 'Authorization': 'Bearer ' + key }
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    sbUrl = url; sbKey = key;
+    localStorage.setItem('babel_sb_url', sbUrl);
+    localStorage.setItem('babel_sb_key', sbKey);
+    // Recargar todos los ratings desde Supabase
+    ratings = {};
+    await cargarRatingsSupabase();
+    saveRatings();
+    setSbStatus('ok');
+    fb.textContent = '✓ Conectado correctamente.'; fb.style.color = '#080';
+    setTimeout(() => { cerrarSbModal(); refGrid(); }, 1000);
+  } catch(e) {
+    fb.textContent = 'Error: ' + e.message; fb.style.color = '#c00';
+  }
+}
+
+// ── Ratings: { titulo → número entero } con localStorage como caché ──
+let ratings = {};
+try {
+  const saved = localStorage.getItem('babel_ratings');
+  if (saved) ratings = JSON.parse(saved);
+} catch(e) {}
+function saveRatings() {
+  try { localStorage.setItem('babel_ratings', JSON.stringify(ratings)); } catch(e) {}
+}
+function getRatingTexto(titulo) {
+  const n = ratings[titulo];
+  if (n === undefined || n === null || n === '') return '';
+  const num = parseInt(n, 10);
+  if (isNaN(num)) return '';
+  if (num < 7) return '(Apta para todos los públicos)';
+  return `(No recomendada para menores de ${num} años)`;
+}
+
+const DIA_MAP = {
+  'lun':'L.','lunes':'L.','mar':'M.','martes':'M.',
+  'mié':'X.','mie':'X.','miércoles':'X.','miercoles':'X.',
+  'jue':'J.','jueves':'J.','vie':'V.','viernes':'V.',
+  'sáb':'S.','sab':'S.','sábado':'S.','sabado':'S.','dom':'D.','domingo':'D.'
+};
+
+function normalizarDia(raw) {
+  const m = raw.trim().match(/^(\S+)\s+(.+)$/);
+  if (!m) return raw;
+  const clave = m[1].toLowerCase().replace(/\.$/, '');
+  const abrev = DIA_MAP[clave] || (clave[0].toUpperCase() + '.');
+  return abrev + ' ' + m[2];
+}
+
+function parsearFicha(html) {
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  const tabla = doc.querySelector('.tabla-sesiones');
+  if (!tabla) return [];
+  return [...tabla.querySelectorAll('tr')].map(leerFilaSesiones).filter(Boolean);
+}
+
+function fusionarDias(pelicula, diasNuevos) {
+  diasNuevos.forEach(d => {
+    const ex = pelicula.dias.find(x => x.nombre === d.nombre);
+    if (!ex) { pelicula.dias.push(d); return; }
+    // El día ya venía de la cartelera: añadir los pases que solo aparezcan en la ficha
+    d.horas.forEach(h => { if (h && !ex.horas.includes(h)) ex.horas.push(h); });
+    ex.horas = ex.horas.filter(Boolean).sort((a, b) => minutosHora(a) - minutosHora(b));
+  });
+}
+
+// ── Lectura de una fila de la tabla de sesiones ──
+// Una celda puede contener más de un pase apilado (p. ej. "19:00" y "19:40"
+// en la misma casilla de la web). Antes solo se leía el primer enlace de la
+// celda y el resto se perdía. Ahora se recogen todas las horas de la fila,
+// sin duplicados y ordenadas cronológicamente.
+const RE_HORA = /([01]?\d|2[0-3]):([0-5]\d)/g;
+function minutosHora(h) { const [hh, mm] = h.split(':').map(Number); return hh * 60 + mm; }
+function leerFilaSesiones(fila) {
+  const celdas = [...fila.querySelectorAll('td')];
+  if (!celdas.length) return null;
+  const raw = celdas[0].textContent.trim();
+  if (!raw) return null;
+  const horas = [];
+  celdas.slice(1).forEach(c => {
+    // Si la celda tiene enlaces, cada enlace es un pase; si no, el texto entero
+    const enlaces = [...c.querySelectorAll('a')];
+    const textos = enlaces.length ? enlaces.map(a => a.textContent) : [c.textContent];
+    textos.forEach(t => {
+      for (const m of t.matchAll(RE_HORA)) {
+        const h = m[1].padStart(2, '0') + ':' + m[2];
+        if (!horas.includes(h)) horas.push(h);
+      }
+    });
+  });
+  horas.sort((a, b) => minutosHora(a) - minutosHora(b));
+  return { nombre: normalizarDia(raw), horas };
+}
+
+function parsear(html) {
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  const mapa = new Map();
+  doc.querySelectorAll('.pelicula-content').forEach(bloque => {
+    const h2 = bloque.querySelector('.pelicula-title h2');
+    if (!h2) return;
+    const titulo = h2.textContent.trim();
+    // Póster (posterDe: ver CARGA MANUAL)
+    const poster = posterDe(bloque.querySelector('.caratula img'));
+    const tabla = bloque.querySelector('.tabla-sesiones');
+    if (!tabla) return;
+    const dias = [...tabla.querySelectorAll('tr')].map(leerFilaSesiones).filter(Boolean);
+    let fichaUrl = '';
+    const acciones = bloque.querySelector('.pelicula-actions');
+    if (acciones) {
+      const enlaces = [...acciones.querySelectorAll('a')];
+      const verFicha = enlaces.find(a => a.textContent.trim().toLowerCase().includes('ver ficha'));
+      if (verFicha) fichaUrl = absCinesbabel(verFicha.getAttribute('href'));
+    }
+    if (!dias.length) return;
+    if (mapa.has(titulo)) {
+      const existing = mapa.get(titulo);
+      const nombresExistentes = new Set(existing.dias.map(d => d.nombre));
+      dias.forEach(d => { if (!nombresExistentes.has(d.nombre)) existing.dias.push(d); });
+      if (!existing.poster && poster) existing.poster = poster;
+      if (!existing.fichaUrl && fichaUrl) existing.fichaUrl = fichaUrl;
+    } else {
+      mapa.set(titulo, {titulo, poster, fichaUrl, dias});
+    }
+  });
+  return [...mapa.values()];
+}
+
+const MESES_CAL = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+const MESES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+
+function ordenF(s) {
+  const m = s.match(/(\d+)\s+(\w+)/);
+  if (!m) return 0;
+  const mes = MESES.findIndex(x => m[2].toLowerCase().startsWith(x.toLowerCase()));
+  return mes * 100 + parseInt(m[1]);
+}
+
+// ── Resolución canónica de fechas ──
+// Cada nombre de día ("J. 10 Sep") se convierte UNA sola vez en un Date real,
+// anclado al día de hoy. Antes el año se recalculaba en cada sitio (y en
+// renderCal se usaba el año del mes visible), lo que descuadraba la selección
+// al navegar de mes y rompía el salto diciembre → enero.
+let fechaDates = new Map();
+
+function resolverFechas(lista) {
+  fechaDates = new Map();
+  lista.forEach(f => { const d = fechaToDate(f); if (d) fechaDates.set(f, d); });
+}
+function dateDe(f) {
+  if (!f) return null;
+  return fechaDates.get(f) || fechaToDate(f);
+}
+function cmpFecha(a, b) {
+  const da = dateDe(a), db = dateDe(b);
+  if (da && db) return da.getTime() - db.getTime();
+  return ordenF(a) - ordenF(b);
+}
+
+function fechaToDate(f, refAnyo) {
+  const m = f.match(/(\d+)\s+(\w+)/);
+  if (!m) return null;
+  const mes = MESES.findIndex(x => m[2].toLowerCase().startsWith(x.toLowerCase()));
+  if (mes < 0) return null;
+  const dia = parseInt(m[1]);
+
+  // Si se pasa año explícito (desde renderCal), lo usamos directamente.
+  if (refAnyo !== undefined) {
+    return new Date(refAnyo, mes, dia);
+  }
+
+  // Sin año explícito: elegir el año cuya fecha quede más cerca de hoy,
+  // con preferencia por el futuro próximo sobre el pasado remoto.
+  // Esto resuelve el caso en que el cine tiene fechas de la semana pasada
+  // Y fechas de la semana que viene, ambas del año actual.
+  const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
+  const anyoActual = hoy.getFullYear();
+  const candidatoActual   = new Date(anyoActual,     mes, dia);
+  const candidatoSiguiente = new Date(anyoActual + 1, mes, dia);
+
+  // Distancias en días (positivo = futuro, negativo = pasado)
+  const distActual    = (candidatoActual.getTime()    - hoy.getTime()) / 86400000;
+  const distSiguiente = (candidatoSiguiente.getTime() - hoy.getTime()) / 86400000;
+
+  // Usar el año actual si la fecha no está más de 60 días en el pasado,
+  // de lo contrario usar el año siguiente.
+  if (distActual >= -60) {
+    return candidatoActual;
+  }
+  return candidatoSiguiente;
+}
+
+function rangoSemanaDefecto(fechas, fin = false) {
+  // Busca el día de hoy en las fechas disponibles.
+  // Si no está hoy, busca el más cercano hacia delante.
+  const hoy = new Date(); hoy.setHours(0,0,0,0);
+  if (!fin) {
+    // Inicio: hoy, o el primer día disponible a partir de hoy
+    for (const f of fechas) {
+      const d = fechaToDate(f);
+      if (d && d.getTime() >= hoy.getTime()) return f;
+    }
+    return fechas[0] || null;
+  } else {
+    // Fin: el jueves de la semana en curso (hoy + días hasta jueves)
+    const dow = hoy.getDay(); // 0=dom
+    const diasHastaJue = (4 - dow + 7) % 7;
+    const jue = new Date(hoy); jue.setDate(hoy.getDate() + diasHastaJue);
+    // Buscar ese jueves en las fechas, o el último día disponible hasta él
+    let ultimo = null;
+    for (const f of fechas) {
+      const d = fechaToDate(f);
+      if (d && d.getTime() <= jue.getTime()) ultimo = f;
+    }
+    return ultimo || fechas[fechas.length - 1] || null;
+  }
+}
+
+// ════════════════
+// HELPERS
+// ════════════════
+
+function setMsg(t) { document.getElementById('carga-msg').textContent = t; }
+function tick() { return new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))); }
+function errorMsg(t) {
+  document.getElementById('carga-err').textContent = t;
+  document.getElementById('carga-err').style.display = 'block';
+  document.getElementById('btn-retry').style.display = 'inline-block';
+  document.querySelector('#carga .spinner').style.display = 'none';
+  document.getElementById('carga-msg').style.display = 'none';
+}
+
+// ════════════════
+// ARRANQUE
+// ════════════════
+
+let calIni = null, calFin = null, calMes = null, calAnyo = null, calStep = 0;
+
+document.addEventListener('DOMContentLoaded', arrancar);
+
+// Versión local: en Horarios el póster solo se ve en la selección.
+const AVISAR_SIN_POSTER = false;
+function fusionarFichaManual(p, dias) { fusionarDias(p, dias); }
+
+// Resuelve un href de cinesbabel contra su propio dominio (acepta absoluto,
+// relativo a raíz o relativo a ruta). Devuelve '' si no es de cinesbabel.
+// (Antes se usaba .href, que en la versión local se resolvería contra el
+// archivo abierto y no contra cinesbabel.com.)
+function absCinesbabel(href) {
+  if (!href) return '';
+  try {
+    const u = new URL(href, 'https://cinesbabel.com/');
+    return /(^|\.)cinesbabel\.com$/.test(u.hostname) ? u.href : '';
+  } catch(e) { return ''; }
+}
+
+// Paso de la pantalla de archivos a la herramienta (sustituye a la parte
+// final del antiguo arrancar()). Se puede volver a llamar tras añadir fichas:
+// conserva la selección y el periodo si siguen siendo válidos.
+async function entrarHerramienta() {
+  if (!todas.length) return;
+  const fs = new Set();
+  todas.forEach(p => p.dias.forEach(d => fs.add(d.nombre)));
+  fechas = [...fs];
+  resolverFechas(fechas);   // primero resolver el año de cada día…
+  fechas.sort(cmpFecha);    // …y luego ordenar por fecha real
+  if (!calIni || !fechas.includes(calIni)) calIni = rangoSemanaDefecto(fechas) || fechas[0];
+  if (!calFin || !fechas.includes(calFin)) calFin = rangoSemanaDefecto(fechas, true) || fechas[fechas.length - 1];
+  if (calMes === null) {
+    const hoyRef = new Date();
+    calMes  = hoyRef.getMonth();
+    calAnyo = hoyRef.getFullYear();
+  }
+  actualizarLabel();
+  document.getElementById('entrada').style.display = 'none';
+  document.getElementById('carteles-preview').classList.remove('visible');
+  document.getElementById('barra-ctrl').style.display = 'flex';
+  document.getElementById('panel-sel').style.display = 'block';
+  refGrid();
+
+  // La primera vez, cargar los ratings desde Supabase si hay conexión configurada
+  if (!herramientaAbierta) {
+    herramientaAbierta = true;
+    if (sbConnected()) {
+      try {
+        await cargarRatingsSupabase();
+        saveRatings(); // actualizar caché local
+        setSbStatus('ok');
+        refGrid();
+      } catch(e) {
+        console.warn('Supabase al arrancar:', e.message);
+        setSbStatus('error');
+      }
+    } else {
+      setSbStatus('off');
+    }
+  }
+}
+
+// ════════════════════════════════════════════
+// CARGA MANUAL (versión local, sin Worker)
+// ════════════════════════════════════════════
+// cinesbabel.com tiene ahora una comprobación antibots ("Checking your
+// browser…") que el Worker de Cloudflare no puede superar: recibe HTTP 403.
+// En esta versión no hay Worker: el HTML se descarga a mano desde el
+// navegador, que sí pasa la comprobación, y se arrastra a la herramienta.
+// Se aceptan, en cualquier orden y en varias tandas:
+//   · la cartelera (cinesbabel.com/cartelera/) guardada como "Página web, solo HTML"
+//   · la ficha de cada película, guardada igual
+//   · el paquete .json que genera el marcador "Programación Babel"
+//   · el código fuente pegado en el cuadro de texto
+// Cada vez que se añade algo se vuelve a procesar todo desde cero.
+
+const CB_ORIGEN = 'https://cinesbabel.com/';
+let carteleraHtml = null;
+let fichasCargadas = [];   // [{html, nombre, urls, titulos, clave}]
+let fichasSobrantes = [];  // fichas que no casan con ninguna película
+let avisosCarga = [];      // [[tipo, texto]] de la última tanda
+let herramientaAbierta = false;
+
+function escE(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+// "La Bola Negra (VOSE)" → "la bola negra vose"; "la-bola-negra" → "la bola negra"
+function normTxt(s) {
+  return String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .toLowerCase().replace(/&/g, ' y ').replace(/[^a-z0-9]+/g, ' ').trim();
+}
+// Clave comparable de una URL de cinesbabel: sin protocolo, sin www, sin barra final
+function normUrl(u) {
+  try {
+    const x = new URL(u, CB_ORIGEN);
+    return x.hostname.replace(/^www\./, '') + decodeURIComponent(x.pathname).replace(/\/+$/, '').toLowerCase();
+  } catch(e) { return ''; }
+}
+function slugDe(u) {
+  try { return normTxt(decodeURIComponent(new URL(u, CB_ORIGEN).pathname.split('/').filter(Boolean).pop() || '')); }
+  catch(e) { return ''; }
+}
+
+// Póster con la mayor resolución disponible. Admite las variantes de carga
+// diferida de WordPress (data-src, data-srcset) y descarta las rutas locales
+// que deja "Página web completa" (carpeta *_files/), que aquí no existen.
+function posterDe(img) {
+  if (!img) return '';
+  const cands = [];
+  ['srcset', 'data-srcset', 'data-lazy-srcset'].forEach(at => {
+    let mejor = '', maxW = 0;
+    (img.getAttribute(at) || '').split(',').forEach(s => {
+      const [url, w] = s.trim().split(/\s+/);
+      const n = parseInt(w) || 0;
+      if (url && n > maxW) { maxW = n; mejor = url; }
+    });
+    if (mejor) cands.push(mejor);
+  });
+  ['data-src', 'data-lazy-src', 'src'].forEach(at => { const v = img.getAttribute(at); if (v) cands.push(v); });
+  for (const c of cands) {
+    if (/^data:/i.test(c) || /_files\//i.test(c) || /^file:/i.test(c)) continue;
+    try { return new URL(c, CB_ORIGEN).href; } catch(e) {}
+  }
+  return '';
+}
+
+function esPaginaComprobacion(html) {
+  return /checking your browser|please wait for up to|access denied by imunify|just a moment\.\.\.|comprobando (su|tu) navegador/i
+    .test(html.slice(0, 30000));
+}
+
+// ¿Qué es este HTML? Cartelera (varias películas), ficha (una tabla de
+// sesiones) o la página de comprobación del antibots.
+function clasificarHtml(html, nombre) {
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  const nPelis = doc.querySelectorAll('.pelicula-content .tabla-sesiones').length;
+  if (nPelis >= 2) return {tipo: 'cartelera'};
+  if (doc.querySelector('.tabla-sesiones')) {
+    const urls = [];
+    const guardada = html.match(/<!--\s*saved from url=\(\d+\)(\S+?)\s*-->/i);
+    if (guardada) urls.push(guardada[1]);
+    ['link[rel="canonical"]', 'meta[property="og:url"]'].forEach(s => {
+      const el = doc.querySelector(s);
+      const v = el && (el.getAttribute('href') || el.getAttribute('content'));
+      if (v) urls.push(v);
+    });
+    const titulos = [];
+    const add = t => { if (t && t.trim()) titulos.push(t.trim()); };
+    doc.querySelectorAll('h1, .pelicula-title h2').forEach(h => add(h.textContent));
+    const og = doc.querySelector('meta[property="og:title"]');
+    if (og) add((og.getAttribute('content') || '').split(/\s+[–—|-]\s+/)[0]);
+    if (doc.title) add(doc.title.split(/\s+[–—|-]\s+/)[0]);
+    add(String(nombre || '').replace(/\.[a-z]+$/i, '').split(/\s+[–—|-]\s+/)[0]);
+    return {tipo: 'ficha', urls, titulos};
+  }
+  if (esPaginaComprobacion(html)) return {tipo: 'bloqueo'};
+  return {tipo: 'desconocido'};
+}
+
+function anadirHtml(html, nombre, urlConocida) {
+  const c = clasificarHtml(html, nombre);
+  if (c.tipo === 'cartelera') {
+    carteleraHtml = html;
+    avisosCarga.push(['ok', 'Cartelera cargada (' + nombre + ').']);
+  } else if (c.tipo === 'ficha') {
+    if (urlConocida) c.urls.unshift(urlConocida);
+    const clave = (c.urls.map(normUrl).find(Boolean)) || normTxt(c.titulos[0]) || nombre;
+    // Una ficha de la misma película sustituye a la anterior
+    fichasCargadas = fichasCargadas.filter(f => f.clave !== clave);
+    fichasCargadas.push({html, nombre, urls: c.urls, titulos: c.titulos, clave});
+  } else if (c.tipo === 'bloqueo') {
+    avisosCarga.push(['err', nombre + ': es la página de «Checking your browser», no la de la cartelera. Espera a que cinesbabel.com termine de cargar y guárdala de nuevo.']);
+  } else {
+    avisosCarga.push(['err', nombre + ': no parece una página de cinesbabel.com con horarios.']);
+  }
+}
+
+function anadirPaquete(obj, nombre) {
+  if (!obj || obj.tipo !== 'babel-programacion' || !obj.cartelera || !obj.cartelera.html) {
+    avisosCarga.push(['err', nombre + ': no es un paquete de programación válido.']);
+    return;
+  }
+  anadirHtml(obj.cartelera.html, nombre, obj.cartelera.url);
+  (obj.fichas || []).forEach(f => {
+    if (f.html) anadirHtml(f.html, f.url, f.url);
+    else avisosCarga.push(['err', 'No se pudo descargar ' + f.url + (f.error ? ' (' + f.error + ')' : '') + '.']);
+  });
+}
+
+async function leerArchivos(files) {
+  avisosCarga = [];
+  const nFichasAntes = fichasCargadas.length;
+  for (const f of files) {
+    let txt = '';
+    try { txt = await f.text(); }
+    catch(e) { avisosCarga.push(['err', f.name + ': no se pudo leer el archivo.']); continue; }
+    if (/\.json$/i.test(f.name) || /^\s*\{/.test(txt)) {
+      let obj = null;
+      try { obj = JSON.parse(txt); } catch(e) { avisosCarga.push(['err', f.name + ': el JSON no es válido.']); continue; }
+      anadirPaquete(obj, f.name);
+    } else {
+      anadirHtml(txt, f.name);
+    }
+  }
+  const nuevas = fichasCargadas.length - nFichasAntes;
+  if (nuevas > 0) avisosCarga.push(['ok', nuevas === 1 ? '1 ficha añadida.' : nuevas + ' fichas añadidas.']);
+  procesarCarga();
+}
+
+function pegarCodigo() {
+  const ta = document.getElementById('en-texto');
+  if (!ta.value.trim()) return;
+  avisosCarga = [];
+  const antes = fichasCargadas.length;
+  anadirHtml(ta.value, 'código pegado');
+  if (fichasCargadas.length > antes) avisosCarga.push(['ok', 'Ficha añadida.']);
+  ta.value = '';
+  procesarCarga();
+}
+
+// Busca la ficha de una película: primero por URL, luego por título
+// (o por el nombre de la URL, "la-bola-negra" ↔ "La bola negra").
+function emparejarFicha(p) {
+  const u = p.fichaUrl ? normUrl(p.fichaUrl) : '';
+  const t = normTxt(p.titulo);
+  const slug = p.fichaUrl ? slugDe(p.fichaUrl) : '';
+  return fichasCargadas.find(f => u && f.urls.some(x => normUrl(x) === u))
+      || fichasCargadas.find(f => f.titulos.some(x => { const n = normTxt(x); return n && (n === t || n === slug); }))
+      || null;
+}
+
+function procesarCarga() {
+  todas = carteleraHtml ? parsear(carteleraHtml) : [];
+  const usadas = new Set();
+  todas.forEach(p => {
+    const f = emparejarFicha(p);
+    const dias = f ? parsearFicha(f.html) : [];
+    if (dias.length) {
+      fusionarFichaManual(p, dias);
+      usadas.add(f);
+      p.fichaOk = true;
+    } else {
+      p.fichaOk = !p.fichaUrl;   // sin enlace a ficha no hay nada más que leer
+    }
+  });
+  fichasSobrantes = fichasCargadas.filter(f => !usadas.has(f));
+  pintarEntrada();
+}
+
+function pintarEntrada() {
+  const el = document.getElementById('en-estado');
+  let h = avisosCarga.map(([t, m]) => '<div class="en-msg ' + (t === 'ok' ? '' : t) + '">' + escE(m) + '</div>').join('');
+  if (carteleraHtml && !todas.length) {
+    h += '<div class="en-msg err">La cartelera cargada no contiene películas con horarios.</div>';
+  }
+  if (todas.length) {
+    const conFicha = todas.filter(p => p.fichaUrl);
+    const pendientes = todas.filter(p => !p.fichaOk);
+    h += '<div class="en-res">' + todas.length + ' películas · fichas ' + (conFicha.length - pendientes.length) + ' de ' + conFicha.length + '</div>';
+    if (pendientes.length) {
+      h += '<div class="en-msg av">Sin su ficha, de esas películas solo se tienen los días que publica la cartelera (unos 7) y pueden faltar sesiones al final del periodo. Ábrelas, guárdalas y arrástralas aquí.</div>';
+    }
+    h += '<ul class="en-lista">' + [...todas]
+      .sort((a, b) => (a.fichaOk - b.fichaOk) || a.titulo.localeCompare(b.titulo, 'es'))
+      .map(p => '<li><span class="' + (p.fichaOk ? 'ok' : 'no') + '">' + (p.fichaOk ? '✓' : '•') + '</span>' +
+        '<span class="tit">' + escE(p.titulo) + '</span>' +
+        (!p.fichaOk && p.fichaUrl ? '<a href="' + escE(p.fichaUrl) + '" target="_blank" rel="noopener">abrir ficha ↗</a>' : '') +
+        '</li>').join('') + '</ul>';
+    const sinPoster = todas.filter(p => !p.poster).length;
+    if (AVISAR_SIN_POSTER && sinPoster) {
+      h += '<div class="en-msg av">' + (sinPoster === 1 ? '1 película no tiene póster' : sinPoster + ' películas no tienen póster') +
+        '. Guarda la cartelera como «Página web, solo HTML», no como «Página web completa».</div>';
+    }
+    if (fichasSobrantes.length) {
+      h += '<div class="en-msg av">No se han podido asociar a ninguna película: ' + fichasSobrantes.map(f => escE(f.nombre)).join(', ') + '.</div>';
+    }
+  } else if (!carteleraHtml && fichasCargadas.length) {
+    h += '<div class="en-msg av">' + fichasCargadas.length + (fichasCargadas.length === 1 ? ' ficha cargada' : ' fichas cargadas') + '. Falta la cartelera.</div>';
+  }
+  el.innerHTML = h;
+  const btn = document.getElementById('en-continuar');
+  btn.disabled = !todas.length;
+  btn.textContent = herramientaAbierta ? 'Volver a la herramienta' : 'Continuar';
+}
+
+function abrirEntrada() {
+  avisosCarga = [];
+  pintarEntrada();
+  document.getElementById('entrada').style.display = 'block';
+}
+
+function hayArchivos(e) {
+  return e.dataTransfer && [...(e.dataTransfer.types || [])].includes('Files');
+}
+
+function iniciarEntrada() {
+  const ent = document.getElementById('entrada');
+  const inp = document.getElementById('en-input');
+  inp.addEventListener('change', () => { const fs = [...inp.files]; inp.value = ''; if (fs.length) leerArchivos(fs); });
+  // Se puede soltar en cualquier parte de la ventana; si la herramienta
+  // está abierta, se vuelve a la pantalla de archivos con lo nuevo.
+  window.addEventListener('dragover', e => { if (!hayArchivos(e)) return; e.preventDefault(); ent.classList.add('arrastrando'); });
+  window.addEventListener('dragleave', e => { if (!e.relatedTarget) ent.classList.remove('arrastrando'); });
+  window.addEventListener('drop', e => {
+    if (!hayArchivos(e)) return;
+    e.preventDefault();
+    ent.classList.remove('arrastrando');
+    const fs = [...e.dataTransfer.files];
+    if (!fs.length) return;
+    ent.style.display = 'block';
+    leerArchivos(fs);
+  });
+  const m = document.getElementById('en-marcador');
+  m.href = 'javascript:' + encodeURIComponent('(' + marcadorBabel.toString() + ')()');
+  m.addEventListener('click', e => {
+    e.preventDefault();
+    alert('Arrastra este botón a la barra de marcadores. Luego púlsalo con cinesbabel.com abierto.');
+  });
+}
+
+async function arrancar() {
+  document.getElementById('carga').style.display = 'none';
+  iniciarEntrada();
+  abrirEntrada();
+}
+
+// ── Marcador "Programación Babel" ──
+// Este código NO se ejecuta aquí: se convierte en un marcador del navegador
+// y se ejecuta dentro de cinesbabel.com, donde el navegador ya ha pasado la
+// comprobación. Descarga la cartelera y todas las fichas (4 a la vez) y
+// guarda un único archivo .json para arrastrarlo a la herramienta.
+function marcadorBabel() {
+  if (!/(^|\.)cinesbabel\.com$/.test(location.hostname)) {
+    alert('Abre cinesbabel.com y pulsa este marcador allí.');
+    return;
+  }
+  const caja = document.createElement('div');
+  caja.style.cssText = 'position:fixed;top:16px;right:16px;z-index:2147483647;background:#111;color:#fff;' +
+    'font:14px/1.4 sans-serif;padding:12px 16px;border-radius:6px;box-shadow:0 2px 12px rgba(0,0,0,.4);max-width:340px';
+  document.body.appendChild(caja);
+  const msg = t => { caja.textContent = t; };
+  const mismaWeb = u => {
+    const x = new URL(u, location.origin);
+    if (/(^|\.)cinesbabel\.com$/.test(x.hostname)) { x.protocol = location.protocol; x.host = location.host; }
+    return x.href;
+  };
+  const bajar = async u => {
+    const r = await fetch(u, {credentials: 'include', cache: 'no-store'});
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    return r.text();
+  };
+  (async () => {
+    try {
+      msg('Programación Babel: descargando cartelera…');
+      const urlCartelera = location.origin + '/cartelera/';
+      const html = await bajar(urlCartelera);
+      const doc = new DOMParser().parseFromString(html, 'text/html');
+      if (!doc.querySelector('.tabla-sesiones')) throw new Error('la cartelera no trae películas. Recarga cinesbabel.com, espera a que pase la comprobación y vuelve a pulsar el marcador.');
+      const urls = [];
+      doc.querySelectorAll('.pelicula-content').forEach(b => {
+        const enlaces = [...(b.querySelector('.pelicula-actions') || b).querySelectorAll('a')];
+        const a = enlaces.find(x => /ver ficha/i.test(x.textContent));
+        if (a && a.getAttribute('href')) {
+          const u = mismaWeb(a.getAttribute('href'));
+          if (!urls.includes(u)) urls.push(u);
+        }
+      });
+      const fichas = [];
+      const cola = urls.slice();
+      let hechas = 0;
+      msg('Programación Babel: fichas 0 / ' + urls.length + '…');
+      await Promise.all([0, 1, 2, 3].map(async () => {
+        while (cola.length) {
+          const u = cola.shift();
+          try { fichas.push({url: u, html: await bajar(u)}); }
+          catch(e) { fichas.push({url: u, error: String(e.message || e)}); }
+          hechas++;
+          msg('Programación Babel: fichas ' + hechas + ' / ' + urls.length + '…');
+        }
+      }));
+      const paquete = {tipo: 'babel-programacion', version: 1, fecha: new Date().toISOString(),
+        cartelera: {url: urlCartelera, html: html}, fichas: fichas};
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(new Blob([JSON.stringify(paquete)], {type: 'application/json'}));
+      a.download = 'babel-programacion-' + new Date().toISOString().slice(0, 10) + '.json';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      const ok = fichas.filter(f => f.html).length;
+      msg('Listo: cartelera y ' + ok + ' de ' + urls.length + ' fichas. Arrastra el archivo descargado a la herramienta.');
+      setTimeout(() => caja.remove(), 10000);
+    } catch(e) {
+      msg('No se pudo descargar: ' + (e.message || e));
+      setTimeout(() => caja.remove(), 15000);
+    }
+  })();
+}
+
+// ════════════════
+// CALENDARIO
+// ════════════════
+
+function toggleCal() {
+  const dd = document.getElementById('cal-dropdown');
+  const abrir = !dd.classList.contains('open');
+  dd.classList.toggle('open', abrir);
+  if (abrir) {
+    irAlMesDe(dateDe(calIni));   // abrir siempre sobre el mes de la selección
+    renderCal();
+  }
+}
+function closeCal() { document.getElementById('cal-dropdown').classList.remove('open'); }
+function navCal(delta) { calStep += delta; renderCal(); }
+
+// Coloca el calendario en el mes de una fecha concreta
+function irAlMesDe(d) {
+  if (!d) { calStep = 0; return; }
+  calStep = (d.getFullYear() - calAnyo) * 12 + (d.getMonth() - calMes);
+}
+
+function renderCal() {
+  const base = new Date(calAnyo, calMes + calStep, 1);
+  const mes = base.getMonth(); const anyo = base.getFullYear();
+  document.getElementById('cal-nav-label').textContent = MESES_CAL[mes] + ' ' + anyo;
+
+  const iniDate = dateDe(calIni);
+  const finDate = dateDe(calFin);
+  const primerDia = new Date(anyo, mes, 1).getDay();
+  const diasMes = new Date(anyo, mes + 1, 0).getDate();
+  const offset = (primerDia + 6) % 7;
+
+  let html = '<div class="cal-dh">L</div><div class="cal-dh">M</div><div class="cal-dh">X</div><div class="cal-dh">J</div><div class="cal-dh">V</div><div class="cal-dh">S</div><div class="cal-dh">D</div>';
+  for (let i = 0; i < offset; i++) html += '<div class="cal-day fuera"></div>';
+
+  for (let d = 1; d <= diasMes; d++) {
+    const fd = new Date(anyo, mes, d).getTime();
+    const nombre = fechas.find(f => { const x = dateDe(f); return x && x.getTime() === fd; }) || null;
+    let cls = 'cal-day';
+    if (!nombre) cls += ' fuera';
+    else {
+      cls += ' con-pelis';
+      if (iniDate && finDate) {
+        if (fd === iniDate.getTime() || fd === finDate.getTime()) cls += ' seleccionado';
+        else if (fd > iniDate.getTime() && fd < finDate.getTime()) cls += ' en-rango';
+      } else if (iniDate && fd === iniDate.getTime()) {
+        cls += ' seleccionado';
+      }
+    }
+    // data-fecha + delegación en lugar de onclick inline: el escapado del
+    // apóstrofo no funcionaba y rompía el atributo con ciertos nombres.
+    const attr = nombre ? ` data-fecha="${esc(nombre)}"` : '';
+    html += `<div class="${cls}"${attr}>${d}</div>`;
+  }
+  document.getElementById('cal-grid').innerHTML = html;
+}
+
+function clickDia(nombre) {
+  if (!calIni || calFin) { calIni = nombre; calFin = null; }
+  else {
+    const a = dateDe(calIni), b = dateDe(nombre);
+    if (a && b && b.getTime() < a.getTime()) { calFin = calIni; calIni = nombre; }
+    else calFin = nombre;
+  }
+  renderCal(); actualizarLabel();
+}
+
+function semanaActual() {
+  if (!fechas.length) return;
+  const hoyRef = new Date();
+  calMes  = hoyRef.getMonth();
+  calAnyo = hoyRef.getFullYear();
+  calStep = 0;
+  calIni = rangoSemanaDefecto(fechas) || fechas[0];
+  calFin = rangoSemanaDefecto(fechas, true) || fechas[fechas.length - 1];
+  irAlMesDe(dateDe(calIni));
+  renderCal(); actualizarLabel();
+}
+
+function actualizarLabel() {
+  const lbl = document.getElementById('cal-label');
+  if (calIni && calFin) lbl.textContent = calIni + ' – ' + calFin;
+  else if (calIni) lbl.textContent = calIni;
+  else lbl.textContent = 'Seleccionar fechas';
+}
+
+function fechasEnRango() {
+  if (!calIni) return fechas;
+  const fin = calFin || calIni;
+  let a = fechas.indexOf(calIni), b = fechas.indexOf(fin);
+  if (a < 0 || b < 0) {
+    // Alguno de los extremos ya no está en la lista: filtrar por fecha real
+    // en vez de devolver toda la programación, que era lo que pasaba antes.
+    const da = dateDe(calIni), db = dateDe(fin);
+    if (!da || !db) return fechas;
+    const min = Math.min(da.getTime(), db.getTime());
+    const max = Math.max(da.getTime(), db.getTime());
+    return fechas.filter(f => {
+      const x = dateDe(f);
+      return x && x.getTime() >= min && x.getTime() <= max;
+    });
+  }
+  if (a > b) { const t = a; a = b; b = t; }
+  return fechas.slice(a, b + 1);
+}
+
+// ════════════════
+// SELECCIÓN
+// ════════════════
+
+function refGrid() {
+  const rango = fechasEnRango();
+  enRango = todas.filter(p => p.dias.some(d => rango.includes(d.nombre)));
+  sel = sel.filter(t => enRango.some(p => p.titulo === t));
+
+  const cards = enRango.map(p => {
+    const esSel = sel.includes(p.titulo);
+    const td = p.titulo.length > 35 ? p.titulo.substring(0, 35) + '…' : p.titulo;
+    const imgHtml = p.poster
+      ? `<img src="${esc(p.poster)}" alt="" loading="lazy">`
+      : `<div class="mini-no-img">${esc(td)}</div>`;
+    const div = document.createElement('div');
+    div.className = 'mini-card' + (esSel ? ' sel' : '');
+    const ratingGuardado = ratings[p.titulo] !== undefined ? ratings[p.titulo] : '';
+    div.innerHTML = imgHtml +
+      `<div class="mini-titulo">${esc(td)}</div>` +
+      `<div class="mini-rating"><label>Edad:</label><input type="number" min="0" max="18" step="1" placeholder="—" value="${esc(ratingGuardado)}"></div>` +
+      `<div class="mini-check">✓</div>`;
+    // Toda la fila de edad deja de propagar el click: antes, tocar la etiqueta
+    // "Edad:" seleccionaba o deseleccionaba la película sin querer.
+    div.querySelector('.mini-rating').addEventListener('click', e => e.stopPropagation());
+    const ratingInput = div.querySelector('input[type=number]');
+    ratingInput.addEventListener('change', e => {
+      const val = e.target.value.trim();
+      if (val === '') {
+        delete ratings[p.titulo];
+        saveRatings();
+        deleteRating(p.titulo);
+      } else {
+        const num = parseInt(val, 10);
+        ratings[p.titulo] = num;
+        saveRatings();
+        upsertRating(p.titulo, num);
+      }
+    });
+    div.addEventListener('click', () => toggleSel(p.titulo));
+    return div;
+  });
+  const gminis = document.getElementById('gminis');
+  gminis.innerHTML = '';
+  cards.forEach(c => gminis.appendChild(c));
+
+  actualizarBotonGenerar();
+}
+
+function toggleSel(titulo) {
+  const idx = sel.indexOf(titulo);
+  if (idx >= 0) sel.splice(idx, 1); else sel.push(titulo);
+  refGrid();
+}
+function selTodas() { sel = enRango.map(p => p.titulo); refGrid(); }
+function deselTodas() { sel = []; refGrid(); }
+
+function actualizarBotonGenerar() {
+  const btn = document.getElementById('btn-generar');
+  const n = contarCarteles();
+  btn.disabled = n === 0;
+  btn.textContent = n === 0 ? 'Selecciona películas'
+                  : n === 1 ? 'Generar 1 cartel'
+                            : `Generar ${n} carteles`;
+}
+
+// Cuenta hojas únicas, no días. Antes contaba un cartel por día, así que el
+// botón decía "Generar 26 carteles" y la vista previa mostraba 14.
+function contarCarteles() {
+  const rango = fechasEnRango();
+  const firmas = new Set();
+  for (const titulo of sel) {
+    const p = todas.find(x => x.titulo === titulo);
+    if (!p) continue;
+    for (const dia of p.dias) {
+      const horas = dia.horas.filter(Boolean);
+      if (rango.includes(dia.nombre) && horas.length) firmas.add(firmaCartel(titulo, horas));
+    }
+  }
+  return firmas.size;
+}
+
+// ════════════════
+// SUBTÍTULO
+// ════════════════
+
+function extraerSubtitulo(tituloCompleto) {
+  // Patrones: "Prefijo — Título", "Prefijo – Título", "Prefijo: Título"
+  // Solo si el prefijo tiene espacios (es una frase, no una palabra)
+  const patrones = [/ — /, / – /, /: /];
+  for (const pat of patrones) {
+    const idx = tituloCompleto.search(pat);
+    if (idx > 0) {
+      const prefijo = tituloCompleto.substring(0, idx).trim();
+      const resto = tituloCompleto.substring(idx).replace(pat, '').trim();
+      if (prefijo.includes(' ') && prefijo.length < 60 && resto.length >= 3) {
+        return { subtitulo: prefijo, titulo: resto };
+      }
+    }
+  }
+  return { subtitulo: '', titulo: tituloCompleto };
+}
+
+// ════════════════
+// DUPLICADOS
+// ════════════════
+
+// La firma identifica un "mismo cartel": misma película, mismas horas exactas en el mismo orden
+function firmaCartel(titulo, horas) {
+  return titulo + '|' + horas.filter(Boolean).join(',');
+}
+
+function calcularCarteles() {
+  const rango = fechasEnRango();
+  // firmasVistas: firma → primer día que tiene esos horarios (el "original")
+  const firmasVistas = new Map();
+  const resultado = [];
+
+  for (const titulo of sel) {
+    const p = todas.find(x => x.titulo === titulo);
+    if (!p) continue;
+
+    const diasOrdenados = rango
+      .map(nombre => p.dias.find(d => d.nombre === nombre))
+      .filter(Boolean)
+      .filter(d => d.horas.filter(Boolean).length > 0);
+
+    for (const dia of diasOrdenados) {
+      const horasFiltradas = dia.horas.filter(Boolean);
+      const firma = firmaCartel(titulo, horasFiltradas);
+      if (firmasVistas.has(firma)) {
+        // Este día tiene exactamente los mismos horarios que otro anterior → reutilizable
+        resultado.push({
+          pelicula: p, dia: dia.nombre, horas: horasFiltradas,
+          firma, esNuevo: false, reutilizarDesde: firmasVistas.get(firma)
+        });
+      } else {
+        // Primer día con estos horarios → hay que imprimir
+        firmasVistas.set(firma, dia.nombre);
+        resultado.push({
+          pelicula: p, dia: dia.nombre, horas: horasFiltradas,
+          firma, esNuevo: true, reutilizarDesde: null
+        });
+      }
+    }
+  }
+  return resultado;
+}
+
+
+// ════════════════════════════════════════════
+// CONSTRUCCIÓN DEL CARTEL — REPLICA EXACTA ODT
+//
+// Estructura:
+//   P1 ABCSolar 40pt:  Subtítulo (si lo hay)
+//   P2 ABCSolar 70pt:  Título (puede ser varias líneas)
+//   P3 ABCOracle 24pt: Rating (si lo hay)
+//   [espacio]
+//   P4 ABCOracle 70pt: Una hora por línea ("16'00 h.")
+// ════════════════════════════════════════════
+
+// Convierte "16:00" → "16'00 h."
+function formatoHora(h) {
+  return h.replace(':', "'") + ' h.';
+}
+
+function buildCartelHTML(item) {
+  // item.dias es un array de strings cuando hay días agrupados,
+  // o item.dia es un string único (compatibilidad hacia atrás)
+  const diasArr = item.dias || [item.dia];
+  const { pelicula, horas } = item;
+  const { subtitulo, titulo } = extraerSubtitulo(pelicula.titulo);
+
+  const tituloClase = titulo.length > 20 ? 'c-titulo c-titulo-largo' : 'c-titulo';
+
+  const subtituloHTML = subtitulo
+    ? `<div class="c-subtitulo">${esc(subtitulo)}</div>`
+    : '';
+
+  const ratingTexto = getRatingTexto(pelicula.titulo);
+  const ratingHTML = ratingTexto
+    ? `<div class="c-rating">${esc(ratingTexto)}</div>`
+    : '';
+
+  const horasHTML = horas.map(h => `<div class="c-hora">${esc(formatoHora(h))}</div>`).join('');
+
+  return `<div class="cartel">
+    ${subtituloHTML}
+    <div class="${tituloClase}">${esc(titulo)}</div>
+    ${ratingHTML}
+    ${horasHTML}
+  </div>`;
+}
+
+// ════════════════
+// RESUMEN SEMANAL
+// ════════════════
+
+// Para cada película y cada día del rango decide qué hacer con la hoja
+// al descolgarla esa noche:
+//   sigue  → mañana lleva los mismos horarios, no se toca
+//   → día  → vuelve a hacer falta más adelante: a la funda de ese día
+//   tirar  → no se repite dentro del rango
+function calcularResumen(carteles) {
+  const rango = fechasEnRango();
+  // Orden de la cartelera, no el orden en que se fueron clicando
+  const titulos = enRango.map(p => p.titulo).filter(t => sel.includes(t));
+
+  const firmaDe = new Map();   // "titulo|dia" → firma
+  const nuevas  = new Set();   // "titulo|dia" de las hojas recién impresas
+  carteles.forEach(c => {
+    const k = c.pelicula.titulo + '|' + c.dia;
+    firmaDe.set(k, c.firma);
+    if (c.esNuevo) nuevas.add(k);
+  });
+
+  const filas = titulos.map(titulo => {
+    const celdas = rango.map((dia, i) => {
+      const firma = firmaDe.get(titulo + '|' + dia);
+      if (!firma) return { estado: 'vacia', texto: '' };
+      const nueva = nuevas.has(titulo + '|' + dia);
+      // ¿Mañana sigue colgada exactamente la misma hoja?
+      if (firmaDe.get(titulo + '|' + rango[i + 1]) === firma)
+        return { estado: 'sigue', texto: 'sigue', nueva };
+      // ¿Vuelve a hacer falta algún día posterior del rango?
+      for (let j = i + 2; j < rango.length; j++) {
+        if (firmaDe.get(titulo + '|' + rango[j]) === firma)
+          return { estado: 'mueve', texto: '→ ' + diaCorto(rango[j]), nueva };
+      }
+      return { estado: 'fin', texto: 'tirar', nueva };
+    });
+    return { titulo: extraerSubtitulo(titulo).titulo, celdas };
+  });
+
+  return { dias: rango, filas };
+}
+
+// "J. 17 Sep" → "J 17". Las cabeceras van completas (y así se etiquetan
+// las fundas), pero dentro de la casilla no cabe el mes.
+function diaCorto(nombre) {
+  const m = nombre.match(/^(\S+)\s+(\d+)/);
+  return m ? m[1].replace('.', '') + ' ' + m[2] : nombre;
+}
+
+function selloFechaHora() {
+  const d = new Date();
+  const dosDig = n => String(n).padStart(2, '0');
+  return `${d.getDate()} ${MESES[d.getMonth()].toLowerCase()} ${d.getFullYear()} · ${dosDig(d.getHours())}:${dosDig(d.getMinutes())}`;
+}
+
+function buildResumenHTML(carteles) {
+  const { dias, filas } = calcularResumen(carteles);
+  if (!filas.length || !dias.length) return '';
+
+  const cabecera = dias.map(d => `<th>${esc(d)}</th>`).join('');
+  const cuerpo = filas.map(f => {
+    const celdas = f.celdas.map(c => {
+      if (c.estado === 'vacia') return '<td class="r-vacia"></td>';
+      const cls = 'r-' + c.estado + (c.nueva ? ' r-nueva' : '');
+      return `<td class="${cls}">${esc(c.texto)}</td>`;
+    }).join('');
+    return `<tr><th class="r-peli">${esc(f.titulo)}</th>${celdas}</tr>`;
+  }).join('');
+
+  const titulo = dias.length > 1
+    ? `Carteles · ${esc(dias[0])} – ${esc(dias[dias.length - 1])}`
+    : `Carteles · ${esc(dias[0])}`;
+
+  return `<div class="resumen-hoja">
+    <h2>${titulo}</h2>
+    <table class="resumen-tabla">
+      <thead><tr><th class="r-peli"></th>${cabecera}</tr></thead>
+      <tbody>${cuerpo}</tbody>
+    </table>
+    <div class="resumen-leyenda">
+      <div><span class="r-muestra r-nueva">sigue</span>Hoja recién impresa: va a la funda de ese día</div>
+      <div><span class="r-muestra r-mueve">→ ${esc(diaCorto(dias[dias.length - 1]))}</span>Esa noche pasa a la funda del día indicado</div>
+      <div><span class="r-muestra r-sigue">sigue</span>No se toca: al día siguiente lleva los mismos horarios</div>
+      <div><span class="r-muestra r-fin">tirar</span>No vuelve a hacer falta en este rango</div>
+      <div><span class="r-muestra r-vacia">&nbsp;</span>Sin sesión ese día</div>
+    </div>
+    <div class="resumen-sello">Generado el ${esc(selloFechaHora())}</div>
+  </div>`;
+}
+
+function toggleResumen(activo) {
+  document.body.classList.toggle('con-resumen', activo);
+  document.getElementById('sw-resumen').classList.toggle('on', activo);
+}
+
+// ════════════════
+// GENERAR
+// ════════════════
+
+// Almacén global de HTML de carteles, indexado por número
+// Evita incrustar HTML en atributos onclick (que corrompe las comillas)
+let _carteleStore = [];
+
+function generar() {
+  const carteles = calcularCarteles();
+  if (!carteles.length) return;
+
+  _carteleStore = [];
+
+  // ════════════════════════════════════════════
+  // IMPRESIÓN: una hoja por bloque de horario único
+  // Si Sábado y Jueves tienen los mismos horarios → una sola hoja
+  // ════════════════════════════════════════════
+  // Primero construimos los bloques, luego imprimimos
+  // (bloquesPorFilm se construye justo después — usamos una pasada previa)
+  const bloquesParaImprimir = [];
+  {
+    const firmasVistasImpresion = new Map(); // firma → primer bloque ya añadido
+    for (const c of carteles) {
+      const firma = c.firma;
+      if (!firmasVistasImpresion.has(firma)) {
+        // Recopilar todos los días con esta firma para este bloque
+        const diasDeFirma = carteles
+          .filter(x => x.firma === firma && x.pelicula.titulo === c.pelicula.titulo)
+          .map(x => x.dia);
+        firmasVistasImpresion.set(firma, true);
+        bloquesParaImprimir.push({ ...c, dias: diasDeFirma });
+      }
+    }
+  }
+  document.getElementById('carteles').innerHTML = bloquesParaImprimir.map(b =>
+    `<div class="cartel-pagina">${buildCartelHTML(b)}</div>`
+  ).join('');
+
+  const totalCarteles = bloquesParaImprimir.length;
+  document.getElementById('n-carteles').textContent = totalCarteles;
+
+  // Resumen semanal: se construye siempre, pero solo se imprime si el
+  // switch está encendido. Así alternarlo es instantáneo.
+  const resumenHTML = buildResumenHTML(carteles);
+  document.getElementById('resumen-print').innerHTML = resumenHTML;
+  document.getElementById('resumen-preview').innerHTML = resumenHTML;
+
+  // ════════════════════════════════════════════
+  // PREVIEW: agrupar días con horarios idénticos en un solo bloque
+  // Un bloque agrupa todos los días de una misma película que tienen
+  // exactamente las mismas horas. Se muestra como una sola tarjeta.
+  // ════════════════════════════════════════════
+  const bloquesPorFilm = new Map(); // titulo → [bloque, ...]
+
+  for (const c of carteles) {
+    const t = c.pelicula.titulo;
+    if (!bloquesPorFilm.has(t)) bloquesPorFilm.set(t, []);
+    const lista = bloquesPorFilm.get(t);
+    // Buscar bloque existente con la misma firma (= mismas horas exactas)
+    const existente = lista.find(b => b.firma === c.firma);
+    if (existente) {
+      // Añadir este día al bloque existente
+      existente.dias.push(c.dia);
+      // El bloque es "nuevo" (hay que imprimir al menos uno) si algún día es nuevo
+      if (c.esNuevo) existente.esNuevo = true;
+    } else {
+      lista.push({
+        pelicula: c.pelicula,
+        horas: c.horas,
+        firma: c.firma,
+        dias: [c.dia],
+        esNuevo: c.esNuevo,       // true = hay que imprimir
+        reutilizarDesde: c.esNuevo ? null : c.reutilizarDesde
+      });
+    }
+  }
+
+  // ── Construir preview ──
+  const preview = document.getElementById('preview-grupos');
+  preview.innerHTML = '';
+
+  for (const titulo of sel) {
+    const bloques = bloquesPorFilm.get(titulo);
+    if (!bloques) continue;
+
+    const { titulo: tituloLimpio, subtitulo } = extraerSubtitulo(titulo);
+    const label = subtitulo ? `${subtitulo} — ${tituloLimpio}` : tituloLimpio;
+
+    const grupDiv = document.createElement('div');
+    grupDiv.className = 'preview-grupo';
+
+    const labelEl = document.createElement('div');
+    labelEl.className = 'preview-grupo-label';
+    labelEl.textContent = label;
+    grupDiv.appendChild(labelEl);
+
+    const row = document.createElement('div');
+    row.className = 'preview-cards-row';
+
+    for (const bloque of bloques) {
+      // Guardar HTML del cartel (con todos los días listados) en el store
+      const idx = _carteleStore.length;
+      _carteleStore.push(buildCartelHTML(bloque));
+
+      const { subtitulo: sub, titulo: tit } = extraerSubtitulo(bloque.pelicula.titulo);
+      const horasTexto = bloque.horas.map(formatoHora).join(' · ');
+      const diasTexto = bloque.dias.join(', ');
+
+      const card = document.createElement('div');
+      card.className = 'preview-thumb';
+      card.addEventListener('click', () => mostrarModal(idx));
+
+      // Día — primero y prominente para leerlo de un vistazo
+      const diaEl = document.createElement('div');
+      diaEl.className = 'pt-dia';
+      diaEl.textContent = diasTexto;
+      card.appendChild(diaEl);
+
+      if (sub) {
+        const subEl = document.createElement('div');
+        subEl.className = 'pt-subtitulo';
+        subEl.textContent = sub;
+        card.appendChild(subEl);
+      }
+
+      const titEl = document.createElement('div');
+      titEl.className = 'pt-titulo';
+      titEl.textContent = tit;
+      card.appendChild(titEl);
+
+      const ratingPT = getRatingTexto(bloque.pelicula.titulo);
+      if (ratingPT) {
+        const ratingEl = document.createElement('div');
+        ratingEl.className = 'pt-rating';
+        ratingEl.textContent = ratingPT;
+        card.appendChild(ratingEl);
+      }
+
+      const sep = document.createElement('hr');
+      sep.className = 'pt-horas-sep';
+      card.appendChild(sep);
+
+      const horasEl = document.createElement('div');
+      horasEl.className = 'pt-horas';
+      horasEl.textContent = horasTexto;
+      card.appendChild(horasEl);
+
+      row.appendChild(card);
+    }
+
+    grupDiv.appendChild(row);
+    preview.appendChild(grupDiv);
+  }
+
+  document.getElementById('panel-sel').style.display = 'none';
+  document.getElementById('carteles-preview').classList.add('visible');
+}
+
+function mostrarModal(idx) {
+  const html = _carteleStore[idx] || '';
+  document.getElementById('modal-inner').innerHTML = html;
+  document.getElementById('cartel-individual').innerHTML = html;
+  document.getElementById('modal-overlay').classList.add('visible');
+}
+function cerrarModal(e) {
+  if (e.target === document.getElementById('modal-overlay'))
+    document.getElementById('modal-overlay').classList.remove('visible');
+}
+function imprimirIndividual() {
+  document.getElementById('modal-overlay').classList.remove('visible');
+  document.body.classList.add('imprimiendo-individual');
+  setTimeout(() => {
+    window.print();
+    document.body.classList.remove('imprimiendo-individual');
+    document.getElementById('modal-overlay').classList.add('visible');
+  }, 100);
+}
+
+// ── Clics en los días del calendario (delegación) ──
+// Antes cada día llevaba un onclick inline. Como clickDia() vuelve a pintar
+// el grid, el <div> pulsado quedaba fuera del DOM antes de que el clic
+// llegara a document, el listener de "clic fuera" no lo reconocía como
+// interno y CERRABA el calendario en cuanto elegías el primer día: por eso
+// no había forma de marcar un rango.
+document.getElementById('cal-grid').addEventListener('click', e => {
+  const celda = e.target.closest('.cal-day[data-fecha]');
+  if (celda) clickDia(celda.dataset.fecha);
+});
+
+// Se decide en fase de captura, ANTES de que ningún handler repinte nada,
+// si el clic ha nacido dentro del calendario.
+let calClicDentro = false;
+document.addEventListener('click', e => {
+  const w = document.querySelector('.cal-wrapper');
+  calClicDentro = !!(w && w.contains(e.target));
+}, true);
+document.addEventListener('click', () => {
+  if (!calClicDentro) closeCal();
+});
+</script>
+</body>
+</html>
