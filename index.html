@@ -547,7 +547,7 @@ body { font-family: 'ABCOracle', sans-serif; background: #e8e8e8; color: #000; }
   <button id="sb-status" onclick="abrirSbModal()">
     <span id="sb-dot">⚫</span><span id="sb-label">Base de datos</span>
   </button>
-  <div id="version-label">v1.11 · Desarrollado por Pablo Goitia</div>
+  <div id="version-label">v1.12 · Desarrollado por Pablo Goitia</div>
 </div>
 
 <!-- Modal configuración Supabase -->
@@ -1245,20 +1245,30 @@ function contarCarteles() {
 // ════════════════
 
 function extraerSubtitulo(tituloCompleto) {
-  // Patrones: "Prefijo — Título", "Prefijo – Título", "Prefijo: Título"
-  // Solo si el prefijo tiene espacios (es una frase, no una palabra)
-  const patrones = [/ — /, / – /, /: /];
-  for (const pat of patrones) {
-    const idx = tituloCompleto.search(pat);
-    if (idx > 0) {
-      const prefijo = tituloCompleto.substring(0, idx).trim();
-      const resto = tituloCompleto.substring(idx).replace(pat, '').trim();
-      if (prefijo.includes(' ') && prefijo.length < 60 && resto.length >= 3) {
-        return { subtitulo: prefijo, titulo: resto };
-      }
+  const t = tituloCompleto.trim();
+
+  // 1) Raya o guion rodeado de espacios: "Babelitos – Título",
+  //    "Cine familiar – Título", "30 años 30 películas – Título".
+  //    Es el separador que usa la web para ciclos y sesiones especiales,
+  //    así que vale aunque el prefijo sea una sola palabra (Babelitos).
+  //    Se corta en la PRIMERA raya: los dos puntos que vengan después
+  //    son parte del título de la película.
+  const raya = t.match(/^(.+?)\s+[—–-]\s+(.+)$/);
+  if (raya && raya[1].length < 60 && raya[2].trim().length >= 3) {
+    return { subtitulo: raya[1].trim(), titulo: raya[2].trim() };
+  }
+
+  // 2) Dos puntos: "Prefijo: Título", solo si el prefijo tiene varias
+  //    palabras, para no partir títulos como "Misión: Imposible".
+  const idx = t.indexOf(': ');
+  if (idx > 0) {
+    const prefijo = t.slice(0, idx).trim();
+    const resto = t.slice(idx + 2).trim();
+    if (prefijo.includes(' ') && prefijo.length < 60 && resto.length >= 3) {
+      return { subtitulo: prefijo, titulo: resto };
     }
   }
-  return { subtitulo: '', titulo: tituloCompleto };
+  return { subtitulo: '', titulo: t };
 }
 
 // ════════════════
@@ -1389,8 +1399,13 @@ function calcularResumen(carteles) {
       }
       return { estado: 'fin', texto: 'tirar', nueva };
     });
-    return { titulo: extraerSubtitulo(titulo).titulo, celdas };
+    return { completo: titulo, titulo: extraerSubtitulo(titulo).titulo, celdas };
   });
+  // Babelitos y Cine familiar pueden ser la misma película: sin el prefijo,
+  // las dos filas se llamarían igual. En ese caso se muestra el título completo.
+  const repetidos = filas.map(f => f.titulo)
+    .filter((t, i, arr) => arr.indexOf(t) !== i);
+  filas.forEach(f => { if (repetidos.includes(f.titulo)) f.titulo = f.completo; });
 
   return { dias: rango, filas };
 }
